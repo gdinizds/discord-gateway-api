@@ -86,11 +86,20 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
+            Map<String, Object> raw = new java.util.HashMap<>();
+            raw.put("content", event.getMessage().getContentRaw());
+            raw.put("messageId", messageId);
+            var ref = event.getMessage().getReferencedMessage();
+            if (ref != null) {
+                raw.put("referencedMessage", Map.of(
+                        "messageId", ref.getId(),
+                        "content", ref.getContentRaw(),
+                        "userId", ref.getAuthor().getId()));
+            }
+
             var payload = new DiscordEventPayload(
                     "MESSAGE_CREATED", correlationId, "normal",
-                    guildId, channelId, userId, null, messageId,
-                    event.getMessage().getContentRaw(),
-                    1, relayedUrls, Map.of());
+                    guildId, channelId, userId, null, messageId, 1, relayedUrls, raw);
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
@@ -125,11 +134,20 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
+            Map<String, Object> raw = new java.util.HashMap<>();
+            raw.put("content", event.getMessage().getContentRaw());
+            raw.put("messageId", messageId);
+            var ref = event.getMessage().getReferencedMessage();
+            if (ref != null) {
+                raw.put("referencedMessage", Map.of(
+                        "messageId", ref.getId(),
+                        "content", ref.getContentRaw(),
+                        "userId", ref.getAuthor().getId()));
+            }
+
             var payload = new DiscordEventPayload(
                     "MESSAGE_UPDATED", correlationId, "low",
-                    guildId, channelId, userId, null, messageId,
-                    event.getMessage().getContentRaw(),
-                    version, relayedUrls, Map.of());
+                    guildId, channelId, userId, null, messageId, version, relayedUrls, raw);
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
@@ -165,8 +183,7 @@ public class DiscordEventListener extends ListenerAdapter {
 
             var payload = new DiscordEventPayload(
                     "INTERACTION_COMMAND", correlationId, "normal",
-                    guildId, channelId, userId, token, null, null,
-                    1, List.of(),
+                    guildId, channelId, userId, token, null, 1, List.of(),
                     Map.of("commandName", event.getFullCommandName(), "args", args));
 
             boolean published = eventRouter.route(payload,
@@ -201,9 +218,8 @@ public class DiscordEventListener extends ListenerAdapter {
         try {
             var payload = new DiscordEventPayload(
                     "INTERACTION_BUTTON", correlationId, "normal",
-                    guildId, channelId, userId, token, messageId, null,
-                    1, List.of(),
-                    Map.of("componentId", event.getComponentId()));
+                    guildId, channelId, userId, token, messageId, 1, List.of(),
+                    Map.of("componentId", event.getComponentId(), "messageId", messageId));
 
             boolean published = eventRouter.route(payload,
                     () -> event.reply("Serviço temporariamente indisponível. Tente novamente em instantes.")
@@ -239,8 +255,7 @@ public class DiscordEventListener extends ListenerAdapter {
 
             var payload = new DiscordEventPayload(
                     "INTERACTION_MODAL", correlationId, "normal",
-                    guildId, channelId, userId, token, null, null,
-                    1, List.of(),
+                    guildId, channelId, userId, token, null, 1, List.of(),
                     Map.of("modalId", event.getModalId(), "values", values));
 
             boolean published = eventRouter.route(payload,
@@ -269,9 +284,8 @@ public class DiscordEventListener extends ListenerAdapter {
         try {
             var payload = new DiscordEventPayload(
                     "GUILD_MEMBER", correlationId, "low",
-                    guildId, null, userId, null, null, null,
-                    1, List.of(),
-                    Map.of("action", "JOIN",
+                    guildId, null, userId, null, null, 1, List.of(),
+                    Map.of("action", "JOIN", "userId", userId,
                             "username", event.getMember().getUser().getName(),
                             "guildName", event.getGuild().getName()));
 
@@ -297,9 +311,8 @@ public class DiscordEventListener extends ListenerAdapter {
         try {
             var payload = new DiscordEventPayload(
                     "GUILD_MEMBER", correlationId, "low",
-                    guildId, null, userId, null, null, null,
-                    1, List.of(),
-                    Map.of("action", "LEAVE",
+                    guildId, null, userId, null, null, 1, List.of(),
+                    Map.of("action", "LEAVE", "userId", userId,
                             "username", event.getUser().getName(),
                             "guildName", event.getGuild().getName()));
 
@@ -324,8 +337,7 @@ public class DiscordEventListener extends ListenerAdapter {
         try {
             var payload = new DiscordEventPayload(
                     "GUILD_UPDATED", correlationId, "low",
-                    guildId, null, null, null, null, null,
-                    1, List.of(),
+                    guildId, null, null, null, null, 1, List.of(),
                     Map.of("field", "name",
                             "oldValue", event.getOldName(),
                             "newValue", event.getNewName()));

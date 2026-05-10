@@ -15,7 +15,6 @@ public record DiscordEventPayload(
         String userId,
         String interactionToken,
         String messageId,
-        String content,
         int version,
         List<String> attachments,
         Map<String, Object> rawPayload

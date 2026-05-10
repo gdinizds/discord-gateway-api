@@ -114,11 +114,13 @@ class EventPublishingIT {
         String messageId = "msg-corr-test";
 
         var created = new DiscordEventPayload("MESSAGE_CREATED", correlationId, "normal",
-                "guild-3", "ch-1", "user-1", null, messageId, "hello", 1, List.of(), Map.of());
+                "guild-3", "ch-1", "user-1", null, messageId, 1, List.of(),
+                Map.of("content", "hello", "messageId", messageId));
         eventRouter.route(created, null);
 
         var updated = new DiscordEventPayload("MESSAGE_UPDATED", correlationId, "low",
-                "guild-3", "ch-1", "user-1", null, messageId, "hello edited", 2, List.of(), Map.of());
+                "guild-3", "ch-1", "user-1", null, messageId, 2, List.of(),
+                Map.of("content", "hello edited", "messageId", messageId));
         eventRouter.route(updated, null);
 
         // Collect both records in a single poll loop to avoid discarding cross-topic records
@@ -205,8 +207,8 @@ class EventPublishingIT {
         consumer.subscribe(List.of("discord.events.message.created"));
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", correlationId, "normal",
-                "guild-audit", "ch-1", "user-1", null, "msg-audit", "audit test",
-                1, List.of(), Map.of());
+                "guild-audit", "ch-1", "user-1", null, "msg-audit", 1, List.of(),
+                Map.of("content", "audit test", "messageId", "msg-audit"));
         eventRouter.route(payload, null);
 
         var record = pollByCorrelation(consumer, "discord.events.message.created", correlationId);
@@ -218,7 +220,7 @@ class EventPublishingIT {
         return new DiscordEventPayload(eventType, UUID.randomUUID().toString(), "normal",
                 guildId, "channel-1", "user-1",
                 eventType.startsWith("INTERACTION_") ? "token-" + UUID.randomUUID() : null,
-                messageId, null, 1, List.of(), Map.of());
+                messageId, 1, List.of(), Map.of());
     }
 
     private ConsumerRecord<String, String> pollByCorrelation(

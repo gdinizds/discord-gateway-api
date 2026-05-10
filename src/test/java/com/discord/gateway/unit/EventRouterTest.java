@@ -138,6 +138,6 @@ class EventRouterTest {
     private DiscordEventPayload payload(String eventType) {
         return new DiscordEventPayload(eventType, "corr-1", "normal",
                 "guild-1", "channel-1", "user-1",
-                null, null, null, 1, List.of(), Map.of());
+                null, null, 1, List.of(), Map.of());
     }
 }

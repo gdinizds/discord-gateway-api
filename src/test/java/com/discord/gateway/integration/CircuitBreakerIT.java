@@ -88,7 +88,7 @@ class CircuitBreakerIT {
         var router    = new EventRouter(topicRegistry, publisher, guildConfigRepository, meterRegistry);
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", "corr-1", "normal",
-                "guild-1", "channel-1", "user-1", null, "msg-1", null, 1, List.of(), Map.of());
+                "guild-1", "channel-1", "user-1", null, "msg-1", 1, List.of(), Map.of());
 
         for (int i = 0; i < 10; i++) {
             router.route(payload, null);
@@ -131,7 +131,7 @@ class CircuitBreakerIT {
         redpandaCb.transitionToOpenState();
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", "corr-2", "normal",
-                "guild-1", "channel-1", "user-1", null, "msg-1", null, 1, List.of(), Map.of());
+                "guild-1", "channel-1", "user-1", null, "msg-1", 1, List.of(), Map.of());
 
         boolean result = eventRouter.route(payload, null);
         assertThat(result).isFalse();
