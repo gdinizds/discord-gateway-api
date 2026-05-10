@@ -44,4 +44,6 @@ public class GuildConfig {
     public String getGuildId()   { return guildId; }
     public GuildParam getParam() { return param; }
     public String getValue()     { return value; }
+
+    public void update(String newValue) { this.value = newValue; }
 }

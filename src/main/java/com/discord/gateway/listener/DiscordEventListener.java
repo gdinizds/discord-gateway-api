@@ -1,7 +1,9 @@
 package com.discord.gateway.listener;
 
+import com.discord.gateway.audit.GuildConfigService;
 import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
+import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.model.DiscordEventPayload;
@@ -10,6 +12,7 @@ import com.discord.gateway.router.EventRouter;
 import com.discord.gateway.router.TopicRegistry;
 import com.fasterxml.uuid.Generators;
 import io.micrometer.core.instrument.MeterRegistry;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.events.guild.update.GuildUpdateNameEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
@@ -39,6 +42,7 @@ public class DiscordEventListener extends ListenerAdapter {
     private final AttachmentRelayService attachmentRelayService;
     private final InteractionHookRegistry hookRegistry;
     private final GuildLifecycleService guildLifecycleService;
+    private final GuildConfigService guildConfigService;
     private final TopicRegistry topicRegistry;
     private final MeterRegistry meterRegistry;
 
@@ -47,6 +51,7 @@ public class DiscordEventListener extends ListenerAdapter {
                                 AttachmentRelayService attachmentRelayService,
                                 InteractionHookRegistry hookRegistry,
                                 GuildLifecycleService guildLifecycleService,
+                                GuildConfigService guildConfigService,
                                 TopicRegistry topicRegistry,
                                 MeterRegistry meterRegistry) {
         this.eventRouter = eventRouter;
@@ -54,6 +59,7 @@ public class DiscordEventListener extends ListenerAdapter {
         this.attachmentRelayService = attachmentRelayService;
         this.hookRegistry = hookRegistry;
         this.guildLifecycleService = guildLifecycleService;
+        this.guildConfigService = guildConfigService;
         this.topicRegistry = topicRegistry;
         this.meterRegistry = meterRegistry;
     }
@@ -133,6 +139,11 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getGuild() == null) return;
+
+        if ("config".equals(event.getName())) {
+            handleConfigCommand(event);
+            return;
+        }
 
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
@@ -318,6 +329,35 @@ public class DiscordEventListener extends ListenerAdapter {
         } finally {
             MDC.clear();
         }
+    }
+
+    private void handleConfigCommand(SlashCommandInteractionEvent event) {
+        String guildId = event.getGuild().getId();
+
+        if (!event.getMember().hasPermission(Permission.MANAGE_SERVER)) {
+            event.reply("Você precisa da permissão **Gerenciar Servidor** para usar este comando.")
+                    .setEphemeral(true).queue();
+            meterRegistry.counter("discord.gateway.config.commands",
+                    "success", "false", "reason", "unauthorized").increment();
+            return;
+        }
+
+        String paramName = event.getOption("parameter").getAsString();
+        String value     = event.getOption("value").getAsString();
+
+        GuildParam param;
+        try {
+            param = GuildParam.valueOf(paramName);
+        } catch (IllegalArgumentException e) {
+            event.reply("Parâmetro desconhecido: `" + paramName + "`.")
+                    .setEphemeral(true).queue();
+            return;
+        }
+
+        var result = guildConfigService.upsert(guildId, param, value);
+        event.reply(result.message()).setEphemeral(true).queue();
+        meterRegistry.counter("discord.gateway.config.commands",
+                "success", String.valueOf(result.success())).increment();
     }
 
     private List<String> relayAttachments(

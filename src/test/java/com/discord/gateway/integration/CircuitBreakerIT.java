@@ -52,13 +52,14 @@ class CircuitBreakerIT {
         var attachmentRelay        = mock(AttachmentRelayService.class);
         var hookRegistry           = new InteractionHookRegistry();
         var guildLifecycle         = mock(GuildLifecycleService.class);
+        var guildConfigService     = mock(com.discord.gateway.audit.GuildConfigService.class);
 
         when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         eventPublisher = new EventPublisher(kafkaTemplate, redpandaCb, topicRegistry, objectMapper, meterRegistry);
         eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
-                hookRegistry, guildLifecycle, topicRegistry, meterRegistry);
+                hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
