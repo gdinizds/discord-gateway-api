@@ -23,7 +23,7 @@ public class StartupLogger {
     @EventListener(ApplicationReadyEvent.class)
     public void onReady() {
         log.info(
-                "discord-event-gateway ONLINE — único ponto de contato com a API Discord " +
+                "discord-event-gateway ONLINE  " +
                 "[status={}, guilds={}]",
                 jda.getStatus().name(),
                 jda.getGuilds().size()

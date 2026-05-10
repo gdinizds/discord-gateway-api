@@ -15,4 +15,5 @@ public class KafkaProducerConfig {
     @Bean NewTopic topicInteractionModal()   { return TopicBuilder.name("discord.events.interaction.modal").build(); }
     @Bean NewTopic topicGuildMember()        { return TopicBuilder.name("discord.events.guild.member").build(); }
     @Bean NewTopic topicGuildUpdated()       { return TopicBuilder.name("discord.events.guild.updated").build(); }
+    @Bean NewTopic topicGatewayCommands()    { return TopicBuilder.name("discord.gateway.commands").build(); }
 }

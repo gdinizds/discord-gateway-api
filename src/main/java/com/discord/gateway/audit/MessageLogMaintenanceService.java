@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
-// Partition maintenance disabled on H2 profiles — PostgreSQL partitioning only
 @Service
 @Profile("!test & !local")
 public class MessageLogMaintenanceService {
@@ -64,7 +63,6 @@ public class MessageLogMaintenanceService {
         String partitionName = "gateway.message_log_" + suffix;
 
         try {
-            // Dropping the parent partition cascades to all sub-partitions (8 hash buckets)
             jdbc.update("DROP TABLE IF EXISTS " + partitionName + " CASCADE",
                     new MapSqlParameterSource());
             log.info("Partição antiga removida [partition={}]", partitionName);
