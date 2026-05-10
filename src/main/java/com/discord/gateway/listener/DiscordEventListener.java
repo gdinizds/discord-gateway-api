@@ -88,11 +88,11 @@ public class DiscordEventListener extends ListenerAdapter {
 
             Map<String, Object> raw = new java.util.HashMap<>();
             raw.put("content", event.getMessage().getContentRaw());
-            raw.put("messageId", messageId);
-            raw.put("username", event.getAuthor().getName());
-            raw.put("userAvatarUrl", event.getAuthor().getEffectiveAvatarUrl());
-            raw.put("guildName", event.getGuild().getName());
-            raw.put("guildIconUrl", event.getGuild().getIconUrl());
+            raw.put("user", Map.of(
+                    "id", userId,
+                    "username", event.getAuthor().getName(),
+                    "avatarUrl", event.getAuthor().getEffectiveAvatarUrl()));
+            raw.put("guild", buildGuildInfo(event.getGuild()));
             var ref = event.getMessage().getReferencedMessage();
             if (ref != null) {
                 raw.put("referencedMessage", Map.of(
@@ -140,11 +140,11 @@ public class DiscordEventListener extends ListenerAdapter {
 
             Map<String, Object> raw = new java.util.HashMap<>();
             raw.put("content", event.getMessage().getContentRaw());
-            raw.put("messageId", messageId);
-            raw.put("username", event.getAuthor().getName());
-            raw.put("userAvatarUrl", event.getAuthor().getEffectiveAvatarUrl());
-            raw.put("guildName", event.getGuild().getName());
-            raw.put("guildIconUrl", event.getGuild().getIconUrl());
+            raw.put("user", Map.of(
+                    "id", userId,
+                    "username", event.getAuthor().getName(),
+                    "avatarUrl", event.getAuthor().getEffectiveAvatarUrl()));
+            raw.put("guild", buildGuildInfo(event.getGuild()));
             var ref = event.getMessage().getReferencedMessage();
             if (ref != null) {
                 raw.put("referencedMessage", Map.of(
@@ -411,6 +411,14 @@ public class DiscordEventListener extends ListenerAdapter {
             if (ephemeralFallback != null) ephemeralFallback.run();
             return null;
         }
+    }
+
+    private static Map<String, Object> buildGuildInfo(net.dv8tion.jda.api.entities.Guild guild) {
+        var info = new java.util.HashMap<String, Object>();
+        info.put("id", guild.getId());
+        info.put("name", guild.getName());
+        if (guild.getIconUrl() != null) info.put("iconUrl", guild.getIconUrl());
+        return info;
     }
 
     private static String newCorrelationId() {
