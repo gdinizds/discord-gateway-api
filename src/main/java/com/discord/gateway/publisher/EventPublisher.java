@@ -36,6 +36,8 @@ public class EventPublisher {
     }
 
     public boolean publish(String topic, DiscordEventPayload payload, Runnable ephemeralFallback) {
+        meterRegistry.counter("discord.gateway.events.received",
+                "type", payload.eventType()).increment();
         try {
             String json = objectMapper.writeValueAsString(payload);
             redpandaCb.executeCallable(() -> {
