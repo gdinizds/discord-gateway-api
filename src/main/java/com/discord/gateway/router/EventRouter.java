@@ -50,8 +50,8 @@ public class EventRouter {
         var routed = new DiscordEventPayload(
                 payload.eventType(), payload.correlationId(), mapping.priority(),
                 payload.guildId(), payload.channelId(), payload.userId(),
-                payload.interactionToken(), payload.messageId(), payload.version(),
-                payload.attachments(), payload.rawPayload());
+                payload.interactionToken(), payload.messageId(), payload.content(),
+                payload.version(), payload.attachments(), payload.rawPayload());
 
         var sample = Timer.start(meterRegistry);
         boolean published = eventPublisher.publish(mapping.topic(), routed, ephemeralFallback);

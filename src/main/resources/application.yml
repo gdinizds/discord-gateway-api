@@ -15,8 +15,6 @@ spring:
     locations: classpath:db/migration/postgresql
     schemas: gateway
     baseline-on-migrate: false
-    user: ${DB_FLYWAY_USERNAME:}
-    password: ${DB_FLYWAY_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: none

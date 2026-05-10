@@ -88,8 +88,10 @@ services:
         condition: service_completed_successfully
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/gateway
-      DB_USERNAME: gateway
-      DB_PASSWORD: gateway
+      DB_USERNAME: gateway_api
+      DB_PASSWORD: gateway_api
+      SPRING_FLYWAY_USER: gateway_migration
+      SPRING_FLYWAY_PASSWORD: gateway_migration
       REDPANDA_BOOTSTRAP_SERVERS: redpanda:9092
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
       GARAGE_ENDPOINT: http://minio:9000
