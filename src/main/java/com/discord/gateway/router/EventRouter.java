@@ -1,39 +1,32 @@
 package com.discord.gateway.router;
 
+import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.publisher.EventPublisher;
+import com.discord.gateway.repository.GuildConfigRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Map;
 
 @Service
 public class EventRouter {
 
     private static final Logger log = LoggerFactory.getLogger(EventRouter.class);
 
-    private static final String ALLOWED_CHANNELS_SQL = """
-            SELECT value FROM gateway.guild_config
-            WHERE guild_id = :guildId AND param = 'ALLOWED_CHANNELS'
-            """;
-
     private final TopicRegistry topicRegistry;
     private final EventPublisher eventPublisher;
-    private final NamedParameterJdbcTemplate jdbc;
+    private final GuildConfigRepository guildConfigRepository;
     private final MeterRegistry meterRegistry;
 
     public EventRouter(TopicRegistry topicRegistry,
                        EventPublisher eventPublisher,
-                       NamedParameterJdbcTemplate jdbc,
+                       GuildConfigRepository guildConfigRepository,
                        MeterRegistry meterRegistry) {
         this.topicRegistry = topicRegistry;
         this.eventPublisher = eventPublisher;
-        this.jdbc = jdbc;
+        this.guildConfigRepository = guildConfigRepository;
         this.meterRegistry = meterRegistry;
     }
 
@@ -69,13 +62,11 @@ public class EventRouter {
     private boolean isChannelAllowed(String guildId, String channelId) {
         if (guildId == null || channelId == null) return true;
         try {
-            List<String> results = jdbc.query(ALLOWED_CHANNELS_SQL,
-                    Map.of("guildId", guildId),
-                    (rs, _) -> rs.getString("value"));
-            if (results.isEmpty()) return true;
-            String config = results.get(0);
-            if ("*".equals(config)) return true;
-            for (String id : config.split(",")) {
+            var config = guildConfigRepository.findByGuildIdAndParam(guildId, GuildParam.ALLOWED_CHANNELS);
+            if (config.isEmpty()) return true;
+            String value = config.get().getValue();
+            if ("*".equals(value)) return true;
+            for (String id : value.split(",")) {
                 if (channelId.equals(id.strip())) return true;
             }
             return false;

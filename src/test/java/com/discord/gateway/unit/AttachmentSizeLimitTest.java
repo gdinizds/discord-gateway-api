@@ -1,7 +1,10 @@
 package com.discord.gateway.unit;
 
+import com.discord.gateway.domain.GuildConfig;
+import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.relay.AttachmentRelayService;
+import com.discord.gateway.repository.GuildConfigRepository;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,25 +12,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class AttachmentSizeLimitTest {
 
-    @Mock NamedParameterJdbcTemplate jdbc;
+    @Mock GuildConfigRepository guildConfigRepository;
     @Mock S3Client s3Client;
 
     AttachmentRelayService relayService;
@@ -35,14 +33,13 @@ class AttachmentSizeLimitTest {
     private static final long DEFAULT_MAX = 26_214_400L; // 25 MB
 
     @BeforeEach
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void setUp() {
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
         relayService = new AttachmentRelayService(
                 url -> "bytes".getBytes(),
                 s3Client,
                 CircuitBreaker.ofDefaults("garage-test"),
-                jdbc,
+                guildConfigRepository,
                 new SimpleMeterRegistry(),
                 DEFAULT_MAX,
                 "discord-attachments",
@@ -66,10 +63,11 @@ class AttachmentSizeLimitTest {
     }
 
     @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void attachmentAboveGuildSpecificLimitIsRejected() {
         long guildMax = 5_242_880L; // 5 MB
-        doReturn(List.of(String.valueOf(guildMax))).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var config = new GuildConfig("guild-special", GuildParam.MAX_ATTACHMENT_SIZE_BYTES, String.valueOf(guildMax));
+        when(guildConfigRepository.findByGuildIdAndParam("guild-special", GuildParam.MAX_ATTACHMENT_SIZE_BYTES))
+                .thenReturn(Optional.of(config));
 
         assertThatThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/medium.png", "medium.png",
@@ -79,10 +77,11 @@ class AttachmentSizeLimitTest {
     }
 
     @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void attachmentBelowGuildSpecificLimitSucceeds() {
         long guildMax = 5_242_880L;
-        doReturn(List.of(String.valueOf(guildMax))).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var config = new GuildConfig("guild-special", GuildParam.MAX_ATTACHMENT_SIZE_BYTES, String.valueOf(guildMax));
+        when(guildConfigRepository.findByGuildIdAndParam("guild-special", GuildParam.MAX_ATTACHMENT_SIZE_BYTES))
+                .thenReturn(Optional.of(config));
 
         assertThatNoException().isThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/small.png", "small.png",

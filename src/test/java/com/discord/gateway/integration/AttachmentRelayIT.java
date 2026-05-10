@@ -2,14 +2,12 @@ package com.discord.gateway.integration;
 
 import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.relay.AttachmentRelayService;
+import com.discord.gateway.repository.GuildConfigRepository;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -23,16 +21,16 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.net.URI;
-import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers
-@SuppressWarnings({"unchecked", "rawtypes"})
 class AttachmentRelayIT {
 
     @Container
@@ -63,14 +61,14 @@ class AttachmentRelayIT {
 
     @BeforeEach
     void setUpService() {
-        var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var guildConfigRepository = mock(GuildConfigRepository.class);
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         relayService = new AttachmentRelayService(
                 url -> ("content-of:" + url).getBytes(),
                 s3Client,
                 CircuitBreaker.ofDefaults("garage-test"),
-                jdbc,
+                guildConfigRepository,
                 new SimpleMeterRegistry(),
                 DEFAULT_MAX,
                 BUCKET,
@@ -103,14 +101,14 @@ class AttachmentRelayIT {
 
     @Test
     void downloadFailureCausesRelayException() {
-        var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var guildConfigRepository = mock(GuildConfigRepository.class);
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         var failingService = new AttachmentRelayService(
                 url -> { throw new java.io.IOException("Discord CDN unreachable"); },
                 s3Client,
                 CircuitBreaker.ofDefaults("garage-fail-test"),
-                jdbc,
+                guildConfigRepository,
                 new SimpleMeterRegistry(),
                 DEFAULT_MAX, BUCKET, endpoint);
 
@@ -123,8 +121,8 @@ class AttachmentRelayIT {
 
     @Test
     void garageCbOpenCausesRelayException() {
-        var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var guildConfigRepository = mock(GuildConfigRepository.class);
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         var openCb = CircuitBreaker.ofDefaults("garage-open-test");
         openCb.transitionToOpenState();
@@ -133,7 +131,7 @@ class AttachmentRelayIT {
                 url -> "bytes".getBytes(),
                 s3Client,
                 openCb,
-                jdbc,
+                guildConfigRepository,
                 new SimpleMeterRegistry(),
                 DEFAULT_MAX, BUCKET, endpoint);
 

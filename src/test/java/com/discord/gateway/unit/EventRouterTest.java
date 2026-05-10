@@ -1,7 +1,10 @@
 package com.discord.gateway.unit;
 
+import com.discord.gateway.domain.GuildConfig;
+import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.publisher.EventPublisher;
+import com.discord.gateway.repository.GuildConfigRepository;
 import com.discord.gateway.router.EventRouter;
 import com.discord.gateway.router.TopicRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -10,35 +13,30 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class EventRouterTest {
 
     @Mock EventPublisher eventPublisher;
-    @Mock NamedParameterJdbcTemplate jdbc;
+    @Mock GuildConfigRepository guildConfigRepository;
 
     TopicRegistry topicRegistry;
     EventRouter eventRouter;
 
     @BeforeEach
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void setUp() {
         topicRegistry = new TopicRegistry();
-        eventRouter   = new EventRouter(topicRegistry, eventPublisher, jdbc, new SimpleMeterRegistry());
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
-        when(eventPublisher.publish(anyString(), any(), any())).thenReturn(true);
+        eventRouter   = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, new SimpleMeterRegistry());
+        lenient().when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
+        lenient().when(eventPublisher.publish(anyString(), any(), any())).thenReturn(true);
     }
 
     @Test
@@ -91,9 +89,10 @@ class EventRouterTest {
     }
 
     @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void channelNotInAllowedListIsFiltered() {
-        doReturn(List.of("channel-allowed")).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var config = new GuildConfig("guild-1", GuildParam.ALLOWED_CHANNELS, "channel-allowed");
+        when(guildConfigRepository.findByGuildIdAndParam("guild-1", GuildParam.ALLOWED_CHANNELS))
+                .thenReturn(Optional.of(config));
 
         boolean result = eventRouter.route(payload("MESSAGE_CREATED"), null);
         assertThat(result).isFalse();
@@ -101,9 +100,10 @@ class EventRouterTest {
     }
 
     @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void channelInAllowedListIsPassed() {
-        doReturn(List.of("channel-1,channel-2")).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var config = new GuildConfig("guild-1", GuildParam.ALLOWED_CHANNELS, "channel-1,channel-2");
+        when(guildConfigRepository.findByGuildIdAndParam("guild-1", GuildParam.ALLOWED_CHANNELS))
+                .thenReturn(Optional.of(config));
 
         boolean result = eventRouter.route(payload("MESSAGE_CREATED"), null);
         assertThat(result).isTrue();
@@ -111,9 +111,10 @@ class EventRouterTest {
     }
 
     @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void wildcardAllowedChannelsPassesAnyChannel() {
-        doReturn(List.of("*")).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var config = new GuildConfig("guild-1", GuildParam.ALLOWED_CHANNELS, "*");
+        when(guildConfigRepository.findByGuildIdAndParam("guild-1", GuildParam.ALLOWED_CHANNELS))
+                .thenReturn(Optional.of(config));
 
         boolean result = eventRouter.route(payload("MESSAGE_CREATED"), null);
         assertThat(result).isTrue();

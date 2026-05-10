@@ -7,6 +7,7 @@ import com.discord.gateway.listener.DiscordEventListener;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.publisher.EventPublisher;
 import com.discord.gateway.relay.AttachmentRelayService;
+import com.discord.gateway.repository.GuildConfigRepository;
 import com.discord.gateway.router.EventRouter;
 import com.discord.gateway.router.TopicRegistry;
 import tools.jackson.databind.json.JsonMapper;
@@ -20,12 +21,11 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -43,20 +43,20 @@ class CircuitBreakerIT {
     void setUp() {
         redpandaCb = CircuitBreaker.ofDefaults("redpanda-cb-test");
 
-        var topicRegistry   = new TopicRegistry();
-        var objectMapper    = JsonMapper.builder().build();
-        var meterRegistry   = new SimpleMeterRegistry();
-        var jdbc            = mock(NamedParameterJdbcTemplate.class);
-        var kafkaTemplate   = mock(KafkaTemplate.class);
-        var inboundLog      = mock(InboundEventLogService.class);
-        var attachmentRelay = mock(AttachmentRelayService.class);
-        var hookRegistry    = new InteractionHookRegistry();
-        var guildLifecycle  = mock(GuildLifecycleService.class);
+        var topicRegistry          = new TopicRegistry();
+        var objectMapper           = JsonMapper.builder().build();
+        var meterRegistry          = new SimpleMeterRegistry();
+        var guildConfigRepository  = mock(GuildConfigRepository.class);
+        var kafkaTemplate          = mock(KafkaTemplate.class);
+        var inboundLog             = mock(InboundEventLogService.class);
+        var attachmentRelay        = mock(AttachmentRelayService.class);
+        var hookRegistry           = new InteractionHookRegistry();
+        var guildLifecycle         = mock(GuildLifecycleService.class);
 
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         eventPublisher = new EventPublisher(kafkaTemplate, redpandaCb, topicRegistry, objectMapper, meterRegistry);
-        eventRouter    = new EventRouter(topicRegistry, eventPublisher, jdbc, meterRegistry);
+        eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
                 hookRegistry, guildLifecycle, topicRegistry, meterRegistry);
     }
@@ -69,11 +69,11 @@ class CircuitBreakerIT {
         when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(future);
         when(future.get(anyLong(), any())).thenThrow(new RuntimeException("Kafka down"));
 
-        var meterRegistry = new SimpleMeterRegistry();
-        var topicRegistry = new TopicRegistry();
-        var objectMapper  = JsonMapper.builder().build();
-        var jdbc          = mock(NamedParameterJdbcTemplate.class);
-        doReturn(List.of()).when(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
+        var meterRegistry         = new SimpleMeterRegistry();
+        var topicRegistry         = new TopicRegistry();
+        var objectMapper          = JsonMapper.builder().build();
+        var guildConfigRepository = mock(GuildConfigRepository.class);
+        when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         var cbConfig = CircuitBreakerConfig.custom()
                 .slidingWindowSize(10)
@@ -82,7 +82,7 @@ class CircuitBreakerIT {
                 .build();
         var testCb    = CircuitBreaker.of("cb-transition-test", cbConfig);
         var publisher = new EventPublisher(kafkaTemplate, testCb, topicRegistry, objectMapper, meterRegistry);
-        var router    = new EventRouter(topicRegistry, publisher, jdbc, meterRegistry);
+        var router    = new EventRouter(topicRegistry, publisher, guildConfigRepository, meterRegistry);
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", "corr-1", "normal",
                 "guild-1", "channel-1", "user-1", null, "msg-1", 1, List.of(), Map.of());
