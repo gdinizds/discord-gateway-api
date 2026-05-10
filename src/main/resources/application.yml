@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: discord-event-gateway
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration/postgresql
+    schemas: gateway
+    baseline-on-migrate: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  kafka:
+    bootstrap-servers: ${REDPANDA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: discord-gateway
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      compression-type: lz4
+    listener:
+      ack-mode: MANUAL_IMMEDIATE
+
+discord:
+  bot:
+    token: ${DISCORD_BOT_TOKEN}
+
+gateway:
+  garage:
+    endpoint: ${GARAGE_ENDPOINT:http://192.168.10.96}
+    bucket: ${GARAGE_BUCKET:discord-attachments}
+    region: ${GARAGE_REGION:garage}
+  attachments:
+    max-size-bytes: ${ATTACHMENT_MAX_SIZE_BYTES:26214400}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  health:
+    show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      redpanda:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      postgresql:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      garage:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3

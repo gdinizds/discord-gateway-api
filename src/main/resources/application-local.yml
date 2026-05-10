@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:gateway;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=VALUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    locations: classpath:db/migration/h2
+    schemas: GATEWAY
+  kafka:
+    bootstrap-servers: localhost:9092
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+discord:
+  bot:
+    token: local-dev-token
+
+gateway:
+  garage:
+    endpoint: http://localhost:9000
+    bucket: discord-attachments
+    region: us-east-1
+
+logging:
+  level:
+    com.discord.gateway: DEBUG
+    org.springframework.kafka: INFO

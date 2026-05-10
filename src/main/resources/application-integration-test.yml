@@ -1,0 +1,20 @@
+spring:
+  flyway:
+    locations: classpath:db/migration/postgresql
+    schemas: gateway
+    baseline-on-migrate: false
+
+discord:
+  bot:
+    token: integration-test-token
+
+gateway:
+  garage:
+    endpoint: http://localhost:9000
+    bucket: discord-attachments
+    region: us-east-1
+
+logging:
+  level:
+    com.discord.gateway: DEBUG
+    org.springframework.kafka: DEBUG

@@ -1,0 +1,87 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.gdiniz'
+version = '0.0.1-SNAPSHOT'
+description = 'discord-event-gateway'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    jdaVersion        = '5.2.1'
+    resilience4jVersion = '2.3.0'
+    awsSdkVersion     = '2.29.50'
+    uuidGeneratorVersion = '5.1.0'
+    logstashVersion   = '8.0'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "software.amazon.awssdk:bom:${awsSdkVersion}"
+        mavenBom "io.github.resilience4j:resilience4j-bom:${resilience4jVersion}"
+    }
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+
+    // Spring Kafka
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
+    // Flyway
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // Databases
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+
+    // JDA
+    implementation("net.dv8tion:JDA:${jdaVersion}") {
+        exclude group: 'club.minnced', module: 'opus-java'
+    }
+
+    // Resilience4j
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3'
+
+    // AWS SDK S3 (Garage-compatible)
+    implementation 'software.amazon.awssdk:s3'
+
+    // UUID v7
+    implementation "com.fasterxml.uuid:java-uuid-generator:${uuidGeneratorVersion}"
+
+    // Metrics
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // JSON logs
+    implementation "net.logstash.logback:logstash-logback-encoder:${logstashVersion}"
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-kafka'
+    testImplementation 'org.testcontainers:testcontainers-localstack'
+    testImplementation 'org.awaitility:awaitility'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+}
