@@ -39,3 +39,7 @@ out/
 ### Project AI/Specs ###
 ai/
 META-INF/
+
+### Local env ###
+.env
+.env.local
