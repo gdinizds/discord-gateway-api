@@ -34,7 +34,16 @@ class EventRouterTest {
     @BeforeEach
     void setUp() {
         topicRegistry = new TopicRegistry();
-        eventRouter   = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, new SimpleMeterRegistry());
+        topicRegistry.setTopics(Map.of(
+                "MESSAGE_CREATED",     new TopicRegistry.TopicMapping("discord.events.message.created",     "normal"),
+                "MESSAGE_UPDATED",     new TopicRegistry.TopicMapping("discord.events.message.updated",     "low"),
+                "INTERACTION_COMMAND", new TopicRegistry.TopicMapping("discord.events.interaction.command", "normal"),
+                "INTERACTION_BUTTON",  new TopicRegistry.TopicMapping("discord.events.interaction.button",  "normal"),
+                "INTERACTION_MODAL",   new TopicRegistry.TopicMapping("discord.events.interaction.modal",   "normal"),
+                "GUILD_MEMBER",        new TopicRegistry.TopicMapping("discord.events.guild.member",        "low"),
+                "GUILD_UPDATED",       new TopicRegistry.TopicMapping("discord.events.guild.updated",       "low")
+        ));
+        eventRouter = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, new SimpleMeterRegistry());
         lenient().when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
         lenient().when(eventPublisher.publish(anyString(), any(), any())).thenReturn(true);
     }

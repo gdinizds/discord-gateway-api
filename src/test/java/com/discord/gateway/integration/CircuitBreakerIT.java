@@ -44,6 +44,7 @@ class CircuitBreakerIT {
         redpandaCb = CircuitBreaker.ofDefaults("redpanda-cb-test");
 
         var topicRegistry          = new TopicRegistry();
+        topicRegistry.setTopics(defaultTopics());
         var objectMapper           = JsonMapper.builder().build();
         var meterRegistry          = new SimpleMeterRegistry();
         var guildConfigRepository  = mock(GuildConfigRepository.class);
@@ -72,6 +73,7 @@ class CircuitBreakerIT {
 
         var meterRegistry         = new SimpleMeterRegistry();
         var topicRegistry         = new TopicRegistry();
+        topicRegistry.setTopics(defaultTopics());
         var objectMapper          = JsonMapper.builder().build();
         var guildConfigRepository = mock(GuildConfigRepository.class);
         when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
@@ -133,5 +135,17 @@ class CircuitBreakerIT {
 
         boolean result = eventRouter.route(payload, null);
         assertThat(result).isFalse();
+    }
+
+    private static Map<String, TopicRegistry.TopicMapping> defaultTopics() {
+        return Map.of(
+                "MESSAGE_CREATED",     new TopicRegistry.TopicMapping("discord.events.message.created",     "normal"),
+                "MESSAGE_UPDATED",     new TopicRegistry.TopicMapping("discord.events.message.updated",     "low"),
+                "INTERACTION_COMMAND", new TopicRegistry.TopicMapping("discord.events.interaction.command", "normal"),
+                "INTERACTION_BUTTON",  new TopicRegistry.TopicMapping("discord.events.interaction.button",  "normal"),
+                "INTERACTION_MODAL",   new TopicRegistry.TopicMapping("discord.events.interaction.modal",   "normal"),
+                "GUILD_MEMBER",        new TopicRegistry.TopicMapping("discord.events.guild.member",        "low"),
+                "GUILD_UPDATED",       new TopicRegistry.TopicMapping("discord.events.guild.updated",       "low")
+        );
     }
 }

@@ -47,6 +47,28 @@ gateway:
     region: ${GARAGE_REGION:garage}
   attachments:
     max-size-bytes: ${ATTACHMENT_MAX_SIZE_BYTES:26214400}
+  topics:
+    MESSAGE_CREATED:
+      topic: discord.events.message.created
+      priority: normal
+    MESSAGE_UPDATED:
+      topic: discord.events.message.updated
+      priority: low
+    INTERACTION_COMMAND:
+      topic: discord.events.interaction.command
+      priority: normal
+    INTERACTION_BUTTON:
+      topic: discord.events.interaction.button
+      priority: normal
+    INTERACTION_MODAL:
+      topic: discord.events.interaction.modal
+      priority: normal
+    GUILD_MEMBER:
+      topic: discord.events.guild.member
+      priority: low
+    GUILD_UPDATED:
+      topic: discord.events.guild.updated
+      priority: low
 
 management:
   endpoints:
