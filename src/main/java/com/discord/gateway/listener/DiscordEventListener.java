@@ -89,6 +89,8 @@ public class DiscordEventListener extends ListenerAdapter {
             Map<String, Object> raw = new java.util.HashMap<>();
             raw.put("content", event.getMessage().getContentRaw());
             raw.put("messageId", messageId);
+            raw.put("userAvatarUrl", event.getAuthor().getEffectiveAvatarUrl());
+            raw.put("guildIconUrl", event.getGuild().getIconUrl());
             var ref = event.getMessage().getReferencedMessage();
             if (ref != null) {
                 raw.put("referencedMessage", Map.of(
@@ -137,6 +139,8 @@ public class DiscordEventListener extends ListenerAdapter {
             Map<String, Object> raw = new java.util.HashMap<>();
             raw.put("content", event.getMessage().getContentRaw());
             raw.put("messageId", messageId);
+            raw.put("userAvatarUrl", event.getAuthor().getEffectiveAvatarUrl());
+            raw.put("guildIconUrl", event.getGuild().getIconUrl());
             var ref = event.getMessage().getReferencedMessage();
             if (ref != null) {
                 raw.put("referencedMessage", Map.of(
