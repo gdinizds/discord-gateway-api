@@ -27,6 +27,7 @@ public class DiscordResponseExecutor {
         }
 
         InteractionHook hook = hookOpt.get();
+        hookRegistry.remove(payload.interactionToken());
         String content = payload.content() != null ? payload.content() : "";
 
         try {
