@@ -13,15 +13,9 @@ CREATE TABLE gateway.message_log (
     PRIMARY KEY (id, recorded_at, guild_id)
 ) PARTITION BY RANGE (recorded_at);
 
--- Default partition catches any data outside defined ranges
-CREATE TABLE gateway.message_log_default
-    PARTITION OF gateway.message_log DEFAULT;
-
--- Indexes are inherited by all partitions (current + future)
 CREATE INDEX idx_message_log_correlation
     ON gateway.message_log (correlation_id, version);
 
--- Partial index for MESSAGE_UPDATED lookup by discord_message_id (spec 002)
 CREATE INDEX idx_message_log_discord_message_id
     ON gateway.message_log (discord_message_id)
     WHERE discord_message_id IS NOT NULL;

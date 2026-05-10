@@ -1,0 +1,2 @@
+-- pg_partman and pg_cron are not available in H2.
+-- Partition management is handled by PostgreSQL in production.
