@@ -7,6 +7,9 @@ import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.model.DiscordEventPayload;
+import com.discord.gateway.model.GuildInfo;
+import com.discord.gateway.model.ReferencedMessageInfo;
+import com.discord.gateway.model.UserInfo;
 import com.discord.gateway.relay.AttachmentRelayService;
 import com.discord.gateway.router.EventRouter;
 import com.discord.gateway.router.TopicRegistry;
@@ -86,20 +89,8 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
-            Map<String, Object> raw = new java.util.HashMap<>();
-            raw.put("content", event.getMessage().getContentRaw());
-            raw.put("user", Map.of(
-                    "id", userId,
-                    "username", event.getAuthor().getName(),
-                    "avatarUrl", event.getAuthor().getEffectiveAvatarUrl()));
-            raw.put("guild", buildGuildInfo(event.getGuild()));
-            var ref = event.getMessage().getReferencedMessage();
-            if (ref != null) {
-                raw.put("referencedMessage", Map.of(
-                        "messageId", ref.getId(),
-                        "content", ref.getContentRaw(),
-                        "userId", ref.getAuthor().getId()));
-            }
+            Map<String, Object> raw = buildMessageRaw(
+                    event.getMessage(), userId, guildId, event.getGuild());
 
             var payload = new DiscordEventPayload(
                     "MESSAGE_CREATED", correlationId, "normal",
@@ -138,20 +129,8 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
-            Map<String, Object> raw = new java.util.HashMap<>();
-            raw.put("content", event.getMessage().getContentRaw());
-            raw.put("user", Map.of(
-                    "id", userId,
-                    "username", event.getAuthor().getName(),
-                    "avatarUrl", event.getAuthor().getEffectiveAvatarUrl()));
-            raw.put("guild", buildGuildInfo(event.getGuild()));
-            var ref = event.getMessage().getReferencedMessage();
-            if (ref != null) {
-                raw.put("referencedMessage", Map.of(
-                        "messageId", ref.getId(),
-                        "content", ref.getContentRaw(),
-                        "userId", ref.getAuthor().getId()));
-            }
+            Map<String, Object> raw = buildMessageRaw(
+                    event.getMessage(), userId, guildId, event.getGuild());
 
             var payload = new DiscordEventPayload(
                     "MESSAGE_UPDATED", correlationId, "low",
@@ -413,12 +392,23 @@ public class DiscordEventListener extends ListenerAdapter {
         }
     }
 
-    private static Map<String, Object> buildGuildInfo(net.dv8tion.jda.api.entities.Guild guild) {
-        var info = new java.util.HashMap<String, Object>();
-        info.put("id", guild.getId());
-        info.put("name", guild.getName());
-        if (guild.getIconUrl() != null) info.put("iconUrl", guild.getIconUrl());
-        return info;
+    private static Map<String, Object> buildMessageRaw(
+            net.dv8tion.jda.api.entities.Message message,
+            String userId, String guildId,
+            net.dv8tion.jda.api.entities.Guild guild) {
+
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("content", message.getContentRaw());
+        raw.put("user", new UserInfo(userId, message.getAuthor().getName(),
+                message.getAuthor().getEffectiveAvatarUrl()));
+        raw.put("guild", new GuildInfo(guildId, guild.getName(), guild.getIconUrl()));
+
+        var ref = message.getReferencedMessage();
+        if (ref != null) {
+            raw.put("referencedMessage", new ReferencedMessageInfo(
+                    ref.getId(), ref.getContentRaw(), ref.getAuthor().getId()));
+        }
+        return raw;
     }
 
     private static String newCorrelationId() {
