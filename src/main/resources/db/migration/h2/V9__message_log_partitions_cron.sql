@@ -1,0 +1,2 @@
+-- pg_cron não existe no H2; particionamento também não.
+-- Gerenciamento de partições é responsabilidade do banco em produção (PostgreSQL + pg_cron).
