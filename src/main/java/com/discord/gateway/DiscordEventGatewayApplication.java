@@ -14,6 +14,6 @@ public class DiscordEventGatewayApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(DiscordEventGatewayApplication.class, args);
-        log.info("discord-event-gateway started — único ponto de contato com a API Discord");
+        log.info("discord-event-gateway started — sole point of contact with the Discord API");
     }
 }

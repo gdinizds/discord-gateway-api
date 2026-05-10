@@ -21,9 +21,9 @@ public class DiscordResponseExecutor {
     public DispatchResult execute(OutboundResponsePayload payload) {
         var hookOpt = hookRegistry.getHook(payload.interactionToken());
         if (hookOpt.isEmpty()) {
-            log.warn("Nenhum hook registrado para interactionToken [responseType={}]",
+            log.warn("No hook registered for interactionToken [responseType={}]",
                     payload.responseType());
-            return DispatchResult.failure("hook não encontrado para o interactionToken fornecido");
+            return DispatchResult.failure("no hook found for the provided interactionToken");
         }
 
         InteractionHook hook = hookOpt.get();
@@ -35,10 +35,10 @@ public class DiscordResponseExecutor {
                 case "REPLY", "DEFERRED_REPLY" -> sendMessage(hook, content, false);
                 case "EPHEMERAL_REPLY" -> sendMessage(hook, content, true);
                 case "UPDATE_MESSAGE", "DEFERRED_UPDATE" -> editOriginal(hook, content);
-                default -> DispatchResult.failure("responseType não mapeado: " + payload.responseType());
+                default -> DispatchResult.failure("unmapped responseType: " + payload.responseType());
             };
         } catch (Exception e) {
-            log.error("Erro ao executar dispatch Discord [responseType={}]", payload.responseType(), e);
+            log.error("Discord dispatch failed [responseType={}]", payload.responseType(), e);
             return DispatchResult.failure(e.getMessage());
         }
     }
@@ -49,16 +49,16 @@ public class DiscordResponseExecutor {
             action.setEphemeral(true);
         }
         action.queue(
-                msg -> log.debug("Mensagem enviada [messageId={}]", msg.getId()),
-                err -> log.error("Erro ao enviar mensagem Discord", err)
+                msg -> log.debug("Message sent [messageId={}]", msg.getId()),
+                err -> log.error("Failed to send Discord message", err)
         );
         return DispatchResult.success(null, null);
     }
 
     private DispatchResult editOriginal(InteractionHook hook, String content) {
         hook.editOriginal(content).queue(
-                msg -> log.debug("Mensagem editada [messageId={}]", msg.getId()),
-                err -> log.error("Erro ao editar mensagem Discord", err)
+                msg -> log.debug("Message edited [messageId={}]", msg.getId()),
+                err -> log.error("Failed to edit Discord message", err)
         );
         return DispatchResult.success(null, null);
     }

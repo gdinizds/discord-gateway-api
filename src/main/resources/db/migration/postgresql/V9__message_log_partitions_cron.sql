@@ -36,7 +36,6 @@ BEGIN
 END;
 $$;
 
--- Job diário às 23:50 — cria partição de amanhã + 8 sub-partições HASH
 SELECT cron.schedule(
     'message-log-create-partition',
     '50 23 * * *',
@@ -68,7 +67,6 @@ SELECT cron.schedule(
     $$
 );
 
--- Job diário às 23:55 — dropa partição de 8 dias atrás (pai remove os 8 buckets)
 SELECT cron.schedule(
     'message-log-drop-old-partition',
     '55 23 * * *',

@@ -60,12 +60,12 @@ public class ResponseDispatcher {
                     "type", payload.responseType()));
 
             if (!result.success()) {
-                log.error("Dispatch falhou [responseType={}, error={}]",
+                log.error("Dispatch failed [responseType={}, error={}]",
                         payload.responseType(), result.discordError());
             }
 
         } catch (PayloadValidationException e) {
-            log.error("Payload inválido rejeitado [reason={}, missingFields={}, payload={}]",
+            log.error("Invalid payload rejected [reason={}, missingFields={}, payload={}]",
                     e.getReason(), e.getMissingFields(), e.getReceivedPayload());
             meterRegistry.counter("discord.gateway.validation.rejected",
                     "reason", e.getReason()).increment();
@@ -76,7 +76,7 @@ public class ResponseDispatcher {
             }
 
         } catch (Exception e) {
-            log.error("Erro inesperado no processamento do payload [payload={}]", rawJson, e);
+            log.error("Unexpected error processing payload [payload={}]", rawJson, e);
 
         } finally {
             acknowledgment.acknowledge();

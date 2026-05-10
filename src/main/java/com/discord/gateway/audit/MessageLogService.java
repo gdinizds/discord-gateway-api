@@ -59,7 +59,7 @@ public class MessageLogService {
             postgresqlCb.executeRunnable(() -> messageLogRepository.save(entry));
             meterRegistry.counter("discord.gateway.audit.written", "direction", "OUTBOUND").increment();
         } catch (Exception e) {
-            log.error("Falha ao registrar dispatch em message_log — dispatch não bloqueado [responseType={}]",
+            log.error("Failed to record dispatch in message_log — dispatch not blocked [responseType={}]",
                     payload.responseType(), e);
             meterRegistry.counter("discord.gateway.audit.errors", "direction", "OUTBOUND").increment();
         }
