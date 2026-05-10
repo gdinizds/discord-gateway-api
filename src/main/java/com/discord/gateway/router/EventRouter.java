@@ -40,12 +40,12 @@ public class EventRouter {
             return false;
         }
 
+        meterRegistry.counter("discord.gateway.events.received", "type", payload.eventType()).increment();
+
         if (!isChannelAllowed(payload.guildId(), payload.channelId())) {
             log.debug("Channel filtered [guild={}, channel={}]", payload.guildId(), payload.channelId());
             return false;
         }
-
-        meterRegistry.counter("discord.gateway.events.received", "type", payload.eventType()).increment();
 
         var routed = new DiscordEventPayload(
                 payload.eventType(), payload.correlationId(), mapping.priority(),

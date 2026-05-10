@@ -29,6 +29,17 @@ public class GuildConfigService {
         this.meterRegistry = meterRegistry;
     }
 
+    public boolean isRelayEnabled(String guildId) {
+        try {
+            return repository.findByGuildIdAndParam(guildId, GuildParam.ATTACHMENT_RELAY_ENABLED)
+                    .map(c -> "true".equals(c.getValue()))
+                    .orElse(true);
+        } catch (Exception e) {
+            log.warn("Failed to check ATTACHMENT_RELAY_ENABLED for guild {}, allowing by default", guildId, e);
+            return true;
+        }
+    }
+
     @Transactional
     public ConfigResult upsert(String guildId, GuildParam param, String value) {
         String validationError = param.validate(value);

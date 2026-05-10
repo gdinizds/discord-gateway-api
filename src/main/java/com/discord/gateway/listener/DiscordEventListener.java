@@ -364,6 +364,10 @@ public class DiscordEventListener extends ListenerAdapter {
             List<net.dv8tion.jda.api.entities.Message.Attachment> attachments,
             String guildId, String messageId, String eventType, Runnable ephemeralFallback) {
         if (attachments.isEmpty()) return List.of();
+        if (!guildConfigService.isRelayEnabled(guildId)) {
+            log.debug("Attachment relay disabled for guild {} — publishing event without attachments", guildId);
+            return List.of();
+        }
         List<String> urls = new ArrayList<>();
         try {
             for (var att : attachments) {
