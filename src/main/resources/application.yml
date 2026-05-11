@@ -69,6 +69,9 @@ gateway:
     GUILD_UPDATED:
       topic: discord.events.guild.updated
       priority: low
+    MESSAGE_COMMAND:
+      topic: discord.events.message.command
+      priority: normal
 
 management:
   endpoints:

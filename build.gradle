@@ -70,6 +70,10 @@ dependencies {
     // JSON logs
     implementation "net.logstash.logback:logstash-logback-encoder:${logstashVersion}"
 
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'

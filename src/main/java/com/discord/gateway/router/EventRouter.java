@@ -10,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
+
 @Service
 public class EventRouter {
 
@@ -31,6 +33,10 @@ public class EventRouter {
     }
 
     public boolean route(DiscordEventPayload payload, Runnable ephemeralFallback) {
+        return route(payload, ephemeralFallback, null);
+    }
+
+    public boolean route(DiscordEventPayload payload, Runnable ephemeralFallback, Map<String, String> headers) {
         var mapping = topicRegistry.get(payload.eventType());
         if (mapping == null) {
             log.warn("Unknown event type discarded [type={}]", payload.eventType());
@@ -42,19 +48,20 @@ public class EventRouter {
 
         meterRegistry.counter("discord.gateway.events.received", "type", payload.eventType()).increment();
 
-        if (!isChannelAllowed(payload.guildId(), payload.channelId())) {
-            log.debug("Channel filtered [guild={}, channel={}]", payload.guildId(), payload.channelId());
+        String guildId = payload.guild() != null ? payload.guild().getId() : null;
+        if (!isChannelAllowed(guildId, payload.channelId())) {
+            log.debug("Channel filtered [guild={}, channel={}]", guildId, payload.channelId());
             return false;
         }
 
         var routed = new DiscordEventPayload(
                 payload.eventType(), payload.correlationId(), mapping.priority(),
-                payload.guildId(), payload.channelId(), payload.userId(),
+                payload.guild(), payload.channelId(), payload.user(),
                 payload.interactionToken(), payload.messageId(), payload.version(),
                 payload.attachments(), payload.rawPayload());
 
         var sample = Timer.start(meterRegistry);
-        boolean published = eventPublisher.publish(mapping.topic(), routed, ephemeralFallback);
+        boolean published = eventPublisher.publish(mapping.topic(), routed, ephemeralFallback, headers);
         sample.stop(meterRegistry.timer("discord.gateway.routing.latency", "type", payload.eventType()));
         return published;
     }

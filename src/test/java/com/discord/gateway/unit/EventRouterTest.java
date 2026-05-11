@@ -3,6 +3,8 @@ package com.discord.gateway.unit;
 import com.discord.gateway.domain.GuildConfig;
 import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.model.DiscordEventPayload;
+import com.discord.gateway.model.GuildInfo;
+import com.discord.gateway.model.UserInfo;
 import com.discord.gateway.publisher.EventPublisher;
 import com.discord.gateway.repository.GuildConfigRepository;
 import com.discord.gateway.router.EventRouter;
@@ -45,49 +47,49 @@ class EventRouterTest {
         ));
         eventRouter = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, new SimpleMeterRegistry());
         lenient().when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
-        lenient().when(eventPublisher.publish(anyString(), any(), any())).thenReturn(true);
+        lenient().when(eventPublisher.publish(anyString(), any(), any(), any())).thenReturn(true);
     }
 
     @Test
     void messageCreatedRoutesToCorrectTopic() {
         eventRouter.route(payload("MESSAGE_CREATED"), null);
-        verify(eventPublisher).publish(eq("discord.events.message.created"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.message.created"), any(), isNull(), isNull());
     }
 
     @Test
     void messageUpdatedRoutesToCorrectTopic() {
         eventRouter.route(payload("MESSAGE_UPDATED"), null);
-        verify(eventPublisher).publish(eq("discord.events.message.updated"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.message.updated"), any(), isNull(), isNull());
     }
 
     @Test
     void interactionCommandRoutesToCorrectTopic() {
         eventRouter.route(payload("INTERACTION_COMMAND"), null);
-        verify(eventPublisher).publish(eq("discord.events.interaction.command"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.interaction.command"), any(), isNull(), isNull());
     }
 
     @Test
     void interactionButtonRoutesToCorrectTopic() {
         eventRouter.route(payload("INTERACTION_BUTTON"), null);
-        verify(eventPublisher).publish(eq("discord.events.interaction.button"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.interaction.button"), any(), isNull(), isNull());
     }
 
     @Test
     void interactionModalRoutesToCorrectTopic() {
         eventRouter.route(payload("INTERACTION_MODAL"), null);
-        verify(eventPublisher).publish(eq("discord.events.interaction.modal"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.interaction.modal"), any(), isNull(), isNull());
     }
 
     @Test
     void guildMemberRoutesToCorrectTopic() {
         eventRouter.route(payload("GUILD_MEMBER"), null);
-        verify(eventPublisher).publish(eq("discord.events.guild.member"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.guild.member"), any(), isNull(), isNull());
     }
 
     @Test
     void guildUpdatedRoutesToCorrectTopic() {
         eventRouter.route(payload("GUILD_UPDATED"), null);
-        verify(eventPublisher).publish(eq("discord.events.guild.updated"), any(), isNull());
+        verify(eventPublisher).publish(eq("discord.events.guild.updated"), any(), isNull(), isNull());
     }
 
     @Test
@@ -116,7 +118,7 @@ class EventRouterTest {
 
         boolean result = eventRouter.route(payload("MESSAGE_CREATED"), null);
         assertThat(result).isTrue();
-        verify(eventPublisher).publish(anyString(), any(), any());
+        verify(eventPublisher).publish(anyString(), any(), any(), any());
     }
 
     @Test
@@ -137,7 +139,8 @@ class EventRouterTest {
 
     private DiscordEventPayload payload(String eventType) {
         return new DiscordEventPayload(eventType, "corr-1", "normal",
-                "guild-1", "channel-1", "user-1",
+                GuildInfo.builder().id("guild-1").build(), "channel-1",
+                UserInfo.builder().id("user-1").build(),
                 null, null, 1, List.of(), Map.of());
     }
 }

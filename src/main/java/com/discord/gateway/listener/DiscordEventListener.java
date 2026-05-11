@@ -31,6 +31,7 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,9 +72,14 @@ public class DiscordEventListener extends ListenerAdapter {
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!event.isFromGuild() || event.getAuthor().isBot()) return;
 
+        String content = event.getMessage().getContentRaw();
+        if (content.startsWith(".") && content.length() > 1 && !content.startsWith(". ")) {
+            handleDotCommand(event, content);
+            return;
+        }
+
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
-        String userId       = event.getAuthor().getId();
         String messageId    = event.getMessage().getId();
         String correlationId = newCorrelationId();
 
@@ -89,14 +95,66 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
-            Map<String, Object> raw = buildMessageRaw(
-                    event.getMessage(), userId, guildId, event.getGuild());
+            var user = UserInfo.builder()
+                    .id(event.getAuthor().getId())
+                    .username(event.getAuthor().getName())
+                    .avatarUrl(event.getAuthor().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
 
             var payload = new DiscordEventPayload(
                     "MESSAGE_CREATED", correlationId, "normal",
-                    guildId, channelId, userId, null, messageId, 1, relayedUrls, raw);
+                    guild, channelId, user, null, messageId, 1,
+                    relayedUrls, buildMessageRaw(event.getMessage()));
 
             eventRouter.route(payload, null);
+            inboundEventLogService.log(payload);
+        } finally {
+            MDC.clear();
+        }
+    }
+
+    private void handleDotCommand(MessageReceivedEvent event, String content) {
+        String withoutDot = content.substring(1).trim();
+        String[] parts = withoutDot.split("\\s+", 2);
+        String commandName = parts[0].toLowerCase();
+        List<String> args = parts.length > 1 && !parts[1].isBlank()
+                ? Arrays.asList(parts[1].trim().split("\\s+"))
+                : List.of();
+
+        String guildId      = event.getGuild().getId();
+        String channelId    = event.getChannel().getId();
+        String messageId    = event.getMessage().getId();
+        String correlationId = newCorrelationId();
+
+        MDC.put("event_type", "MESSAGE_COMMAND");
+        MDC.put("guild_id", guildId);
+        MDC.put("correlation_id", correlationId);
+        MDC.put("topic", topicRegistry.get("MESSAGE_COMMAND").topic());
+        MDC.put("priority", "normal");
+        MDC.put("has_attachments", "false");
+        try {
+            var user = UserInfo.builder()
+                    .id(event.getAuthor().getId())
+                    .username(event.getAuthor().getName())
+                    .avatarUrl(event.getAuthor().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
+            var rawPayload = args.isEmpty() ? Map.<String, Object>of() : Map.<String, Object>of("args", args);
+            var payload = new DiscordEventPayload(
+                    "MESSAGE_COMMAND", correlationId, "normal",
+                    guild, channelId, user, null, messageId, 1, List.of(), rawPayload);
+
+            eventRouter.route(payload, null, Map.of("command-name", commandName));
             inboundEventLogService.log(payload);
         } finally {
             MDC.clear();
@@ -109,7 +167,6 @@ public class DiscordEventListener extends ListenerAdapter {
 
         String guildId   = event.getGuild().getId();
         String channelId = event.getChannel().getId();
-        String userId    = event.getAuthor().getId();
         String messageId = event.getMessage().getId();
 
         MDC.put("event_type", "MESSAGE_UPDATED");
@@ -129,12 +186,21 @@ public class DiscordEventListener extends ListenerAdapter {
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
 
-            Map<String, Object> raw = buildMessageRaw(
-                    event.getMessage(), userId, guildId, event.getGuild());
+            var user = UserInfo.builder()
+                    .id(event.getAuthor().getId())
+                    .username(event.getAuthor().getName())
+                    .avatarUrl(event.getAuthor().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
 
             var payload = new DiscordEventPayload(
                     "MESSAGE_UPDATED", correlationId, "low",
-                    guildId, channelId, userId, null, messageId, version, relayedUrls, raw);
+                    guild, channelId, user, null, messageId, version,
+                    relayedUrls, buildMessageRaw(event.getMessage()));
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
@@ -154,7 +220,6 @@ public class DiscordEventListener extends ListenerAdapter {
 
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
-        String userId       = event.getUser().getId();
         String token        = event.getToken();
         String correlationId = newCorrelationId();
 
@@ -168,14 +233,27 @@ public class DiscordEventListener extends ListenerAdapter {
             Map<String, Object> args = new HashMap<>();
             for (var opt : event.getOptions()) args.put(opt.getName(), opt.getAsString());
 
+            var user = UserInfo.builder()
+                    .id(event.getUser().getId())
+                    .username(event.getUser().getName())
+                    .avatarUrl(event.getUser().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
+            String commandName = event.getFullCommandName();
+            var rawPayload = args.isEmpty() ? Map.<String, Object>of() : Map.<String, Object>of("args", args);
             var payload = new DiscordEventPayload(
                     "INTERACTION_COMMAND", correlationId, "normal",
-                    guildId, channelId, userId, token, null, 1, List.of(),
-                    Map.of("commandName", event.getFullCommandName(), "args", args));
+                    guild, channelId, user, token, null, 1, List.of(), rawPayload);
 
             boolean published = eventRouter.route(payload,
                     () -> event.reply("Serviço temporariamente indisponível. Tente novamente em instantes.")
-                            .setEphemeral(true).queue());
+                            .setEphemeral(true).queue(),
+                    Map.of("command-name", commandName));
             if (published) {
                 event.deferReply().queue(hook -> hookRegistry.register(token, hook));
             }
@@ -191,7 +269,6 @@ public class DiscordEventListener extends ListenerAdapter {
 
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
-        String userId       = event.getUser().getId();
         String token        = event.getToken();
         String messageId    = event.getMessage().getId();
         String correlationId = newCorrelationId();
@@ -203,9 +280,20 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("priority", "normal");
         MDC.put("has_attachments", "false");
         try {
+            var user = UserInfo.builder()
+                    .id(event.getUser().getId())
+                    .username(event.getUser().getName())
+                    .avatarUrl(event.getUser().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
             var payload = new DiscordEventPayload(
                     "INTERACTION_BUTTON", correlationId, "normal",
-                    guildId, channelId, userId, token, messageId, 1, List.of(),
+                    guild, channelId, user, token, messageId, 1, List.of(),
                     Map.of("componentId", event.getComponentId(), "messageId", messageId));
 
             boolean published = eventRouter.route(payload,
@@ -226,7 +314,6 @@ public class DiscordEventListener extends ListenerAdapter {
 
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
-        String userId       = event.getUser().getId();
         String token        = event.getToken();
         String correlationId = newCorrelationId();
 
@@ -240,9 +327,20 @@ public class DiscordEventListener extends ListenerAdapter {
             Map<String, Object> values = new HashMap<>();
             for (var mapping : event.getValues()) values.put(mapping.getId(), mapping.getAsString());
 
+            var user = UserInfo.builder()
+                    .id(event.getUser().getId())
+                    .username(event.getUser().getName())
+                    .avatarUrl(event.getUser().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
             var payload = new DiscordEventPayload(
                     "INTERACTION_MODAL", correlationId, "normal",
-                    guildId, channelId, userId, token, null, 1, List.of(),
+                    guild, channelId, user, token, null, 1, List.of(),
                     Map.of("modalId", event.getModalId(), "values", values));
 
             boolean published = eventRouter.route(payload,
@@ -260,7 +358,6 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onGuildMemberJoin(GuildMemberJoinEvent event) {
         String guildId      = event.getGuild().getId();
-        String userId       = event.getMember().getUser().getId();
         String correlationId = newCorrelationId();
 
         MDC.put("event_type", "GUILD_MEMBER");
@@ -269,12 +366,22 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("priority", "low");
         MDC.put("has_attachments", "false");
         try {
+            var jdaUser = event.getMember().getUser();
+            var user = UserInfo.builder()
+                    .id(jdaUser.getId())
+                    .username(jdaUser.getName())
+                    .avatarUrl(jdaUser.getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
             var payload = new DiscordEventPayload(
                     "GUILD_MEMBER", correlationId, "low",
-                    guildId, null, userId, null, null, 1, List.of(),
-                    Map.of("action", "JOIN", "userId", userId,
-                            "username", event.getMember().getUser().getName(),
-                            "guildName", event.getGuild().getName()));
+                    guild, null, user, null, null, 1, List.of(),
+                    Map.of("action", "JOIN"));
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
@@ -287,7 +394,6 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {
         String guildId      = event.getGuild().getId();
-        String userId       = event.getUser().getId();
         String correlationId = newCorrelationId();
 
         MDC.put("event_type", "GUILD_MEMBER");
@@ -296,12 +402,21 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("priority", "low");
         MDC.put("has_attachments", "false");
         try {
+            var user = UserInfo.builder()
+                    .id(event.getUser().getId())
+                    .username(event.getUser().getName())
+                    .avatarUrl(event.getUser().getEffectiveAvatarUrl())
+                    .build();
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
             var payload = new DiscordEventPayload(
                     "GUILD_MEMBER", correlationId, "low",
-                    guildId, null, userId, null, null, 1, List.of(),
-                    Map.of("action", "LEAVE", "userId", userId,
-                            "username", event.getUser().getName(),
-                            "guildName", event.getGuild().getName()));
+                    guild, null, user, null, null, 1, List.of(),
+                    Map.of("action", "LEAVE"));
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
@@ -322,9 +437,15 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("priority", "low");
         MDC.put("has_attachments", "false");
         try {
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getNewName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
             var payload = new DiscordEventPayload(
                     "GUILD_UPDATED", correlationId, "low",
-                    guildId, null, null, null, null, 1, List.of(),
+                    guild, null, null, null, null, 1, List.of(),
                     Map.of("field", "name",
                             "oldValue", event.getOldName(),
                             "newValue", event.getNewName()));
@@ -392,21 +513,16 @@ public class DiscordEventListener extends ListenerAdapter {
         }
     }
 
-    private static Map<String, Object> buildMessageRaw(
-            net.dv8tion.jda.api.entities.Message message,
-            String userId, String guildId,
-            net.dv8tion.jda.api.entities.Guild guild) {
-
+    private static Map<String, Object> buildMessageRaw(net.dv8tion.jda.api.entities.Message message) {
         Map<String, Object> raw = new HashMap<>();
         raw.put("content", message.getContentRaw());
-        raw.put("user", new UserInfo(userId, message.getAuthor().getName(),
-                message.getAuthor().getEffectiveAvatarUrl()));
-        raw.put("guild", new GuildInfo(guildId, guild.getName(), guild.getIconUrl()));
-
         var ref = message.getReferencedMessage();
         if (ref != null) {
-            raw.put("referencedMessage", new ReferencedMessageInfo(
-                    ref.getId(), ref.getContentRaw(), ref.getAuthor().getId()));
+            raw.put("referencedMessage", ReferencedMessageInfo.builder()
+                    .messageId(ref.getId())
+                    .content(ref.getContentRaw())
+                    .userId(ref.getAuthor().getId())
+                    .build());
         }
         return raw;
     }

@@ -5,12 +5,17 @@ import com.discord.gateway.router.TopicRegistry;
 import tools.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 public class EventPublisher {
@@ -36,10 +41,25 @@ public class EventPublisher {
     }
 
     public boolean publish(String topic, DiscordEventPayload payload, Runnable ephemeralFallback) {
+        return publish(topic, payload, ephemeralFallback, null);
+    }
+
+    public boolean publish(String topic, DiscordEventPayload payload, Runnable ephemeralFallback,
+                           Map<String, String> headers) {
         try {
             String json = objectMapper.writeValueAsString(payload);
+            String key = payload.guild() != null ? payload.guild().getId() : null;
             redpandaCb.executeCallable(() -> {
-                kafkaTemplate.send(topic, payload.guildId(), json).get(5, TimeUnit.SECONDS);
+                if (headers != null && !headers.isEmpty()) {
+                    var kafkaHeaders = headers.entrySet().stream()
+                            .map(e -> (org.apache.kafka.common.header.Header)
+                                    new RecordHeader(e.getKey(), e.getValue().getBytes(StandardCharsets.UTF_8)))
+                            .collect(Collectors.toList());
+                    kafkaTemplate.send(new ProducerRecord<>(topic, null, null, key, json, kafkaHeaders))
+                            .get(5, TimeUnit.SECONDS);
+                } else {
+                    kafkaTemplate.send(topic, key, json).get(5, TimeUnit.SECONDS);
+                }
                 return null;
             });
             meterRegistry.counter("discord.gateway.events.published",
@@ -56,7 +76,7 @@ public class EventPublisher {
                 ephemeralFallback.run();
             } else {
                 log.warn("Passive event discarded [type={}, guildId={}]",
-                        payload.eventType(), payload.guildId());
+                        payload.eventType(), payload.guild() != null ? payload.guild().getId() : null);
             }
             return false;
         }

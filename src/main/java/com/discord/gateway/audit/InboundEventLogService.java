@@ -41,8 +41,8 @@ public class InboundEventLogService {
             var entry = new MessageLog(
                     correlationId, payload.version(), MessageDirection.INBOUND,
                     payload.eventType(), payload.messageId(), payload.channelId(),
-                    payload.guildId() != null ? payload.guildId() : "unknown",
-                    payload.userId(), payloadJson);
+                    payload.guild() != null ? payload.guild().getId() : "unknown",
+                    payload.user() != null ? payload.user().getId() : null, payloadJson);
 
             postgresqlCb.executeRunnable(() -> messageLogRepository.save(entry));
             meterRegistry.counter("discord.gateway.audit.written", "direction", "INBOUND").increment();

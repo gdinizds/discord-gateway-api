@@ -5,6 +5,8 @@ import com.discord.gateway.audit.InboundEventLogService;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.listener.DiscordEventListener;
 import com.discord.gateway.model.DiscordEventPayload;
+import com.discord.gateway.model.GuildInfo;
+import com.discord.gateway.model.UserInfo;
 import com.discord.gateway.publisher.EventPublisher;
 import com.discord.gateway.relay.AttachmentRelayService;
 import com.discord.gateway.repository.GuildConfigRepository;
@@ -88,7 +90,8 @@ class CircuitBreakerIT {
         var router    = new EventRouter(topicRegistry, publisher, guildConfigRepository, meterRegistry);
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", "corr-1", "normal",
-                "guild-1", "channel-1", "user-1", null, "msg-1", 1, List.of(), Map.of());
+                GuildInfo.builder().id("guild-1").build(), "channel-1",
+                UserInfo.builder().id("user-1").build(), null, "msg-1", 1, List.of(), Map.of());
 
         for (int i = 0; i < 10; i++) {
             router.route(payload, null);
@@ -131,7 +134,8 @@ class CircuitBreakerIT {
         redpandaCb.transitionToOpenState();
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", "corr-2", "normal",
-                "guild-1", "channel-1", "user-1", null, "msg-1", 1, List.of(), Map.of());
+                GuildInfo.builder().id("guild-1").build(), "channel-1",
+                UserInfo.builder().id("user-1").build(), null, "msg-1", 1, List.of(), Map.of());
 
         boolean result = eventRouter.route(payload, null);
         assertThat(result).isFalse();

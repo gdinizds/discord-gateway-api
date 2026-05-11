@@ -1,6 +1,8 @@
 package com.discord.gateway.integration;
 
 import com.discord.gateway.model.DiscordEventPayload;
+import com.discord.gateway.model.GuildInfo;
+import com.discord.gateway.model.UserInfo;
 import com.discord.gateway.router.EventRouter;
 import com.discord.gateway.startup.StartupReconciliationService;
 import tools.jackson.databind.ObjectMapper;
@@ -114,12 +116,14 @@ class EventPublishingIT {
         String messageId = "msg-corr-test";
 
         var created = new DiscordEventPayload("MESSAGE_CREATED", correlationId, "normal",
-                "guild-3", "ch-1", "user-1", null, messageId, 1, List.of(),
+                GuildInfo.builder().id("guild-3").build(), "ch-1",
+                UserInfo.builder().id("user-1").build(), null, messageId, 1, List.of(),
                 Map.of("content", "hello", "messageId", messageId));
         eventRouter.route(created, null);
 
         var updated = new DiscordEventPayload("MESSAGE_UPDATED", correlationId, "low",
-                "guild-3", "ch-1", "user-1", null, messageId, 2, List.of(),
+                GuildInfo.builder().id("guild-3").build(), "ch-1",
+                UserInfo.builder().id("user-1").build(), null, messageId, 2, List.of(),
                 Map.of("content", "hello edited", "messageId", messageId));
         eventRouter.route(updated, null);
 
@@ -207,7 +211,8 @@ class EventPublishingIT {
         consumer.subscribe(List.of("discord.events.message.created"));
 
         var payload = new DiscordEventPayload("MESSAGE_CREATED", correlationId, "normal",
-                "guild-audit", "ch-1", "user-1", null, "msg-audit", 1, List.of(),
+                GuildInfo.builder().id("guild-audit").build(), "ch-1",
+                UserInfo.builder().id("user-1").build(), null, "msg-audit", 1, List.of(),
                 Map.of("content", "audit test", "messageId", "msg-audit"));
         eventRouter.route(payload, null);
 
@@ -218,7 +223,8 @@ class EventPublishingIT {
 
     private DiscordEventPayload payload(String eventType, String guildId, String messageId) {
         return new DiscordEventPayload(eventType, UUID.randomUUID().toString(), "normal",
-                guildId, "channel-1", "user-1",
+                GuildInfo.builder().id(guildId).build(), "channel-1",
+                UserInfo.builder().id("user-1").build(),
                 eventType.startsWith("INTERACTION_") ? "token-" + UUID.randomUUID() : null,
                 messageId, 1, List.of(), Map.of());
     }
