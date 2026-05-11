@@ -41,15 +41,15 @@ public class BotCommandPersistenceService {
 
         try {
             return postgresqlCb.executeCallable(() -> {
-                var existing = commandRepository.findByGuildIdAndBotIdAndPrefixAndName(
-                        guildId, payload.botId(), prefix, payload.name());
+                var existing = commandRepository.findByGuildIdAndPrefixAndName(
+                        guildId, prefix, payload.name());
                 if (existing.isPresent()) {
                     var cmd = existing.get();
                     cmd.update(payload.description(), serializeParameters(payload), payload.isDeleted());
                     return cmd;
                 }
                 return commandRepository.save(new BotCommand(
-                        guildId, payload.botId(), prefix,
+                        guildId, prefix,
                         payload.name(), payload.description(), serializeParameters(payload)));
             });
         } catch (Exception e) {
@@ -65,7 +65,7 @@ public class BotCommandPersistenceService {
                 command.setDiscordCmdId(discordCmdId);
             }
             logRepository.save(new BotCommandLog(
-                    command, eventType, command.getGuildId(), command.getBotId(), success, error));
+                    command, eventType, command.getGuildId(), success, error));
         });
         meterRegistry.counter("discord.gateway.commands.processed",
                 "success", String.valueOf(success)).increment();

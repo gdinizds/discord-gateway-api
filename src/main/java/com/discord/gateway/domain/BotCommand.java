@@ -16,9 +16,6 @@ public class BotCommand {
     @Column(name = "guild_id", length = 20)
     private String guildId;
 
-    @Column(name = "bot_id", length = 20)
-    private String botId;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CommandPrefix prefix;
@@ -50,10 +47,9 @@ public class BotCommand {
 
     protected BotCommand() {}
 
-    public BotCommand(String guildId, String botId, CommandPrefix prefix,
+    public BotCommand(String guildId, CommandPrefix prefix,
                       String name, String description, String parameters) {
         this.guildId = guildId;
-        this.botId = botId;
         this.prefix = prefix;
         this.name = name;
         this.description = description;
@@ -74,7 +70,6 @@ public class BotCommand {
 
     public Long getId()             { return id; }
     public String getGuildId()      { return guildId; }
-    public String getBotId()        { return botId; }
     public CommandPrefix getPrefix(){ return prefix; }
     public String getName()         { return name; }
     public String getDescription()  { return description; }

@@ -8,7 +8,6 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record BotCommandPayload(
-        @JsonProperty("bot_id")     String botId,
         @JsonProperty("guild_id")   String guildId,
         String prefix,
         String name,
@@ -17,8 +16,7 @@ public record BotCommandPayload(
         @JsonProperty("is_deleted") boolean isDeleted
 ) {
     public boolean isValid() {
-        return botId != null && !botId.isBlank()
-                && name != null && !name.isBlank()
+        return name != null && !name.isBlank()
                 && prefix != null && !prefix.isBlank()
                 && description != null && !description.isBlank();
     }

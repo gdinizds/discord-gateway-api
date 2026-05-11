@@ -38,8 +38,8 @@ class BotCommandSyncServiceTest {
 
     @Test
     void validSlashPayload_upsertsAndRegistersWithDiscord() throws Exception {
-        var payload = new BotCommandPayload("bot-1", "guild-1", "SLASH", "ping", "Pinga", List.of(), false);
-        var command = new BotCommand("guild-1", "bot-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
+        var payload = new BotCommandPayload("guild-1", "SLASH", "ping", "Pinga", List.of(), false);
+        var command = new BotCommand("guild-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
         when(persistence.upsert(any())).thenReturn(command);
 
         var guild = mock(Guild.class);
@@ -60,7 +60,7 @@ class BotCommandSyncServiceTest {
 
     @Test
     void invalidPayload_discarded_noInteractionWithDb() throws Exception {
-        var invalid = new BotCommandPayload(null, "guild-1", "SLASH", "ping", "Pinga", List.of(), false);
+        var invalid = new BotCommandPayload("guild-1", null, "ping", "Pinga", List.of(), false);
 
         consumer.onCommand(toJson(invalid), ack);
 
@@ -70,8 +70,8 @@ class BotCommandSyncServiceTest {
 
     @Test
     void dotPrefixPayload_upsertsButSkipsDiscord() throws Exception {
-        var payload = new BotCommandPayload("bot-1", "guild-1", "DOT", "help", "Ajuda", List.of(), false);
-        var command = new BotCommand("guild-1", "bot-1", CommandPrefix.DOT, "help", "Ajuda", "[]");
+        var payload = new BotCommandPayload("guild-1", "DOT", "help", "Ajuda", List.of(), false);
+        var command = new BotCommand("guild-1", CommandPrefix.DOT, "help", "Ajuda", "[]");
         when(persistence.upsert(any())).thenReturn(command);
 
         consumer.onCommand(toJson(payload), ack);
@@ -83,8 +83,8 @@ class BotCommandSyncServiceTest {
 
     @Test
     void discordApiFailure_logsFailureAndAcknowledges() throws Exception {
-        var payload = new BotCommandPayload("bot-1", "guild-1", "SLASH", "ping", "Pinga", List.of(), false);
-        var command = new BotCommand("guild-1", "bot-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
+        var payload = new BotCommandPayload("guild-1", "SLASH", "ping", "Pinga", List.of(), false);
+        var command = new BotCommand("guild-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
         when(persistence.upsert(any())).thenReturn(command);
         when(jda.getGuildById("guild-1")).thenThrow(new RuntimeException("Discord down"));
 
@@ -97,8 +97,8 @@ class BotCommandSyncServiceTest {
 
     @Test
     void isDeletedTrue_callsDeleteOnDiscordAndLogs() throws Exception {
-        var payload = new BotCommandPayload("bot-1", "guild-1", "SLASH", "ping", "Pinga", List.of(), true);
-        var command = new BotCommand("guild-1", "bot-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
+        var payload = new BotCommandPayload("guild-1", "SLASH", "ping", "Pinga", List.of(), true);
+        var command = new BotCommand("guild-1", CommandPrefix.SLASH, "ping", "Pinga", "[]");
         command.setDiscordCmdId("discord-cmd-123");
         when(persistence.upsert(any())).thenReturn(command);
 

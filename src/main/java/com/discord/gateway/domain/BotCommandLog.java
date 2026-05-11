@@ -23,9 +23,6 @@ public class BotCommandLog {
     @Column(name = "guild_id", length = 20)
     private String guildId;
 
-    @Column(name = "bot_id", length = 20)
-    private String botId;
-
     @Column(name = "discord_success")
     private Boolean discordSuccess;
 
@@ -38,12 +35,10 @@ public class BotCommandLog {
     protected BotCommandLog() {}
 
     public BotCommandLog(BotCommand command, CommandEventType eventType,
-                         String guildId, String botId,
-                         boolean discordSuccess, String discordError) {
+                         String guildId, boolean discordSuccess, String discordError) {
         this.command = command;
         this.eventType = eventType;
         this.guildId = guildId;
-        this.botId = botId;
         this.discordSuccess = discordSuccess;
         this.discordError = discordError;
         this.recordedAt = OffsetDateTime.now();

@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface BotCommandRepository extends JpaRepository<BotCommand, Long> {
-    Optional<BotCommand> findByGuildIdAndBotIdAndPrefixAndName(
-            String guildId, String botId, CommandPrefix prefix, String name);
+    Optional<BotCommand> findByGuildIdAndPrefixAndName(
+            String guildId, CommandPrefix prefix, String name);
 }

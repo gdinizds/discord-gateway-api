@@ -31,7 +31,7 @@ class BotCommandSyncIT {
 
     @Test
     void upsert_newCommand_persistsInDb() {
-        var payload = new BotCommandPayload("bot-it-1", "guild-it-1", "SLASH",
+        var payload = new BotCommandPayload("guild-it-1", "SLASH",
                 "search", "Busca um item", List.of(), false);
 
         var command = persistenceService.upsert(payload);
@@ -46,11 +46,11 @@ class BotCommandSyncIT {
 
     @Test
     void upsert_existingCommand_incrementsVersion() {
-        var payload = new BotCommandPayload("bot-it-2", "guild-it-2", "SLASH",
+        var payload = new BotCommandPayload("guild-it-2", "SLASH",
                 "help", "Ajuda", List.of(), false);
 
         var first  = persistenceService.upsert(payload);
-        var updated = new BotCommandPayload("bot-it-2", "guild-it-2", "SLASH",
+        var updated = new BotCommandPayload("guild-it-2", "SLASH",
                 "help", "Ajuda v2", List.of(), false);
         var second = persistenceService.upsert(updated);
 
@@ -61,7 +61,7 @@ class BotCommandSyncIT {
 
     @Test
     void saveResult_persistsLogEntry() {
-        var payload = new BotCommandPayload("bot-it-3", "guild-it-3", "SLASH",
+        var payload = new BotCommandPayload("guild-it-3", "SLASH",
                 "ping", "Pinga", List.of(), false);
         var command = persistenceService.upsert(payload);
 
