@@ -43,3 +43,6 @@ META-INF/
 ### Local env ###
 .env
 .env.local
+
+### Kubernetes secrets ###
+k8s/secret.yaml
