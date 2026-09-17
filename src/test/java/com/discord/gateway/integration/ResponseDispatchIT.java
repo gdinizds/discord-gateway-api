@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 class ResponseDispatchIT {
 
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestPostgresImage.IMAGE)
             .withDatabaseName("gateway_test")
             .withUsername("test")
             .withPassword("test");
