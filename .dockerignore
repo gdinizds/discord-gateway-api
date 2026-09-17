@@ -2,9 +2,7 @@
 .gradle/
 build/
 ai/
-META-INF/
 .DS_Store
 .idea/
 *.iml
 .claude/
-docker/
