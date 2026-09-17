@@ -28,5 +28,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/gdinizds/discord-event-gateway:${{ github.ref_name }}
-            ghcr.io/gdinizds/discord-event-gateway:latest
+            ghcr.io/gdinizds/discord-gateway-api:${{ github.ref_name }}
+            ghcr.io/gdinizds/discord-gateway-api:latest
