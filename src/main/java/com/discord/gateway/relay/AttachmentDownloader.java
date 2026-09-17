@@ -1,8 +1,9 @@
 package com.discord.gateway.relay;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 @FunctionalInterface
 public interface AttachmentDownloader {
-    byte[] download(String url) throws IOException;
+    InputStream download(String url) throws IOException;
 }

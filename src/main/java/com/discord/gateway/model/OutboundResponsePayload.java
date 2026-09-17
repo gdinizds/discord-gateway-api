@@ -13,11 +13,14 @@ public record OutboundResponsePayload(
         String channelId,
         String content,
         List<Map<String, Object>> embeds,
+        List<OutboundAttachment> attachments,
+        Boolean finished,
         String correlationId
 ) {
     public boolean hasContent() {
         return (content != null && !content.isBlank())
-                || (embeds != null && !embeds.isEmpty());
+                || (embeds != null && !embeds.isEmpty())
+                || (attachments != null && !attachments.isEmpty());
     }
 
     public boolean isDeferred() {

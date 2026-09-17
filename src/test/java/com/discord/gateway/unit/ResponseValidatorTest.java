@@ -16,14 +16,14 @@ class ResponseValidatorTest {
     @Test
     void validReplyPayloadPasses() {
         var payload = new OutboundResponsePayload(
-                "REPLY", "token123", null, null, "Hello!", null, "corr-id");
+                "REPLY", "token123", null, null, "Hello!", null, null, null, "corr-id");
         assertThatNoException().isThrownBy(() -> validator.validate(payload, "{}"));
     }
 
     @Test
     void missingResponseTypeIsRejected() {
         var payload = new OutboundResponsePayload(
-                null, "token123", null, null, "Hello!", null, null);
+                null, "token123", null, null, "Hello!", null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
@@ -33,7 +33,7 @@ class ResponseValidatorTest {
     @Test
     void unknownResponseTypeIsRejected() {
         var payload = new OutboundResponsePayload(
-                "UNKNOWN_TYPE", "token123", null, null, "Hello!", null, null);
+                "UNKNOWN_TYPE", "token123", null, null, "Hello!", null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getReason())
@@ -42,18 +42,19 @@ class ResponseValidatorTest {
 
     @Test
     void updateMessageWithoutInteractionTokenIsRejected() {
+        // no interactionToken and no channelId — both routing paths absent
         var payload = new OutboundResponsePayload(
-                "UPDATE_MESSAGE", null, "msg123", null, "Content", null, null);
+                "UPDATE_MESSAGE", null, "msg123", null, "Content", null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
-                        .contains("interactionToken"));
+                        .anySatisfy(f -> assertThat(f).contains("interactionToken")));
     }
 
     @Test
     void updateMessageWithoutMessageIdIsRejected() {
         var payload = new OutboundResponsePayload(
-                "UPDATE_MESSAGE", "token123", null, null, "Content", null, null);
+                "UPDATE_MESSAGE", "token123", null, null, "Content", null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
@@ -63,7 +64,7 @@ class ResponseValidatorTest {
     @Test
     void missingContentAndEmbedsIsRejected() {
         var payload = new OutboundResponsePayload(
-                "REPLY", "token123", null, null, null, null, null);
+                "REPLY", "token123", null, null, null, null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
@@ -73,7 +74,7 @@ class ResponseValidatorTest {
     @Test
     void validEphemeralReplyPasses() {
         var payload = new OutboundResponsePayload(
-                "EPHEMERAL_REPLY", "token123", null, null, "Only you can see this", null, null);
+                "EPHEMERAL_REPLY", "token123", null, null, "Only you can see this", null, null, null, null);
         assertThatNoException().isThrownBy(() -> validator.validate(payload, "{}"));
     }
 
@@ -81,7 +82,7 @@ class ResponseValidatorTest {
     void deferredReplyWithoutContentIsRejected() {
         // DEFERRED_REPLY sends a followup to a previously-deferred interaction — content required
         var payload = new OutboundResponsePayload(
-                "DEFERRED_REPLY", "token123", null, null, null, null, null);
+                "DEFERRED_REPLY", "token123", null, null, null, null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
@@ -92,17 +93,18 @@ class ResponseValidatorTest {
     void deferredUpdateWithoutContentPasses() {
         // DEFERRED_UPDATE edits the original message; empty content = keep as-is (valid Discord behavior)
         var payload = new OutboundResponsePayload(
-                "DEFERRED_UPDATE", "token123", "msg123", null, null, null, null);
+                "DEFERRED_UPDATE", "token123", "msg123", null, null, null, null, null, null);
         assertThatNoException().isThrownBy(() -> validator.validate(payload, "{}"));
     }
 
     @Test
-    void replyMissingInteractionTokenIsRejected() {
+    void replyMissingBothRoutingPathsIsRejected() {
+        // neither interactionToken nor channelId+messageId provided
         var payload = new OutboundResponsePayload(
-                "REPLY", null, null, null, "Hello!", null, null);
+                "REPLY", null, null, null, "Hello!", null, null, null, null);
         assertThatThrownBy(() -> validator.validate(payload, "{}"))
                 .isInstanceOf(PayloadValidationException.class)
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
-                        .contains("interactionToken"));
+                        .anySatisfy(f -> assertThat(f).contains("interactionToken")));
     }
 }

@@ -30,8 +30,11 @@ public class ResponseValidator {
                     "responseType desconhecido: " + payload.responseType(), missing, rawJson);
         }
 
-        if (payload.interactionToken() == null || payload.interactionToken().isBlank()) {
-            missing.add("interactionToken");
+        boolean hasToken   = payload.interactionToken() != null && !payload.interactionToken().isBlank();
+        boolean hasChannel = payload.channelId() != null && !payload.channelId().isBlank()
+                          && payload.messageId() != null && !payload.messageId().isBlank();
+        if (!hasToken && !hasChannel) {
+            missing.add("interactionToken or (channelId + messageId)");
         }
 
         if ("UPDATE_MESSAGE".equals(payload.responseType()) || "DEFERRED_UPDATE".equals(payload.responseType())) {
@@ -43,6 +46,7 @@ public class ResponseValidator {
         if (CONTENT_REQUIRED_TYPES.contains(payload.responseType()) && !payload.hasContent()) {
             missing.add("content");
             missing.add("embeds");
+            missing.add("attachments");
         }
 
         if (!missing.isEmpty()) {

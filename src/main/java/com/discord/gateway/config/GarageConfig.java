@@ -10,10 +10,10 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class GarageConfig {
@@ -42,21 +42,20 @@ public class GarageConfig {
     }
 
     @Bean
-    public AttachmentDownloader attachmentDownloader() {
-        var client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+    public AttachmentDownloader attachmentDownloader(S3Client s3Client) {
         return url -> {
             try {
-                var response = client.send(
-                        HttpRequest.newBuilder(URI.create(url)).GET().build(),
-                        HttpResponse.BodyHandlers.ofByteArray());
-                if (response.statusCode() / 100 != 2)
-                    throw new IOException("HTTP " + response.statusCode() + " from " + url);
-                return response.body();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted fetching " + url, e);
+                String path = URI.create(url).getRawPath();
+                if (path.startsWith("/")) path = path.substring(1);
+                int slash = path.indexOf('/');
+                if (slash < 0) throw new IOException("Cannot parse bucket/key from URL: " + url);
+                String bucket = path.substring(0, slash);
+                String key = URLDecoder.decode(path.substring(slash + 1), StandardCharsets.UTF_8);
+                return (InputStream) s3Client.getObject(req -> req.bucket(bucket).key(key));
+            } catch (IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException("Failed to download attachment from S3: " + url, e);
             }
         };
     }
