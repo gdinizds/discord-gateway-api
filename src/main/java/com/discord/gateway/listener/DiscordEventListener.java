@@ -16,6 +16,9 @@ import com.discord.gateway.router.TopicRegistry;
 import com.fasterxml.uuid.Generators;
 import io.micrometer.core.instrument.MeterRegistry;
 import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
+import net.dv8tion.jda.api.events.guild.update.GuildUpdateBoostTierEvent;
 import net.dv8tion.jda.api.events.guild.update.GuildUpdateNameEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
@@ -90,7 +93,7 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("priority", "normal");
         try {
             List<String> relayedUrls = relayAttachments(
-                    event.getMessage().getAttachments(), guildId, messageId, "MESSAGE_CREATED", null);
+                    event.getMessage().getAttachments(), event.getGuild(), messageId, "MESSAGE_CREATED", null);
             if (relayedUrls == null) return;
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
@@ -181,7 +184,7 @@ public class DiscordEventListener extends ListenerAdapter {
             MDC.put("correlation_id", correlationId);
 
             List<String> relayedUrls = relayAttachments(
-                    event.getMessage().getAttachments(), guildId, messageId, "MESSAGE_UPDATED", null);
+                    event.getMessage().getAttachments(), event.getGuild(), messageId, "MESSAGE_UPDATED", null);
             if (relayedUrls == null) return;
 
             MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
@@ -427,6 +430,52 @@ public class DiscordEventListener extends ListenerAdapter {
     }
 
     @Override
+    public void onReady(ReadyEvent event) {
+        var guilds = event.getJDA().getGuilds();
+        log.info("Gateway ready — syncing tier for {} guild(s) in background", guilds.size());
+        Thread.ofVirtual().name("tier-sync").start(() -> {
+            for (var guild : guilds) {
+                try {
+                    syncGuildTier(guild);
+                } catch (Exception e) {
+                    log.warn("Failed to sync tier for guild {} on startup", guild.getId(), e);
+                }
+            }
+            log.info("Tier sync complete for {} guild(s)", guilds.size());
+        });
+    }
+
+    private void syncGuildTier(Guild guild) {
+        String correlationId = newCorrelationId();
+        MDC.put("event_type", "GUILD_UPDATED");
+        MDC.put("guild_id", guild.getId());
+        MDC.put("correlation_id", correlationId);
+        MDC.put("priority", "low");
+        MDC.put("has_attachments", "false");
+        try {
+            var guildInfo = GuildInfo.builder()
+                    .id(guild.getId())
+                    .name(guild.getName())
+                    .iconUrl(guild.getIconUrl())
+                    .build();
+
+            var raw = new HashMap<String, Object>();
+            raw.put("field", "boostTier");
+            raw.put("sync", true);
+            raw.put("tier", buildTierInfo(guild));
+
+            var payload = new DiscordEventPayload(
+                    "GUILD_UPDATED", correlationId, "low",
+                    guildInfo, null, null, null, null, 1, List.of(), raw);
+
+            eventRouter.route(payload, null);
+            inboundEventLogService.log(payload);
+        } finally {
+            MDC.clear();
+        }
+    }
+
+    @Override
     public void onGuildUpdateName(GuildUpdateNameEvent event) {
         String guildId      = event.getGuild().getId();
         String correlationId = newCorrelationId();
@@ -443,17 +492,57 @@ public class DiscordEventListener extends ListenerAdapter {
                     .iconUrl(event.getGuild().getIconUrl())
                     .build();
 
+            var raw = new HashMap<String, Object>();
+            raw.put("field", "name");
+            raw.put("oldValue", event.getOldName());
+            raw.put("newValue", event.getNewName());
+            raw.put("tier", buildTierInfo(event.getGuild()));
+
             var payload = new DiscordEventPayload(
                     "GUILD_UPDATED", correlationId, "low",
-                    guild, null, null, null, null, 1, List.of(),
-                    Map.of("field", "name",
-                            "oldValue", event.getOldName(),
-                            "newValue", event.getNewName()));
+                    guild, null, null, null, null, 1, List.of(), raw);
 
             eventRouter.route(payload, null);
             inboundEventLogService.log(payload);
             guildLifecycleService.onUpdate(event.getGuild(), "NAME_CHANGED",
                     Map.of("oldName", event.getOldName(), "newName", event.getNewName()));
+        } finally {
+            MDC.clear();
+        }
+    }
+
+    @Override
+    public void onGuildUpdateBoostTier(GuildUpdateBoostTierEvent event) {
+        String guildId      = event.getGuild().getId();
+        String correlationId = newCorrelationId();
+
+        MDC.put("event_type", "GUILD_UPDATED");
+        MDC.put("guild_id", guildId);
+        MDC.put("correlation_id", correlationId);
+        MDC.put("priority", "low");
+        MDC.put("has_attachments", "false");
+        try {
+            var guild = GuildInfo.builder()
+                    .id(guildId)
+                    .name(event.getGuild().getName())
+                    .iconUrl(event.getGuild().getIconUrl())
+                    .build();
+
+            var raw = new HashMap<String, Object>();
+            raw.put("field", "boostTier");
+            raw.put("oldValue", event.getOldBoostTier().getKey());
+            raw.put("newValue", event.getNewBoostTier().getKey());
+            raw.put("tier", buildTierInfo(event.getGuild()));
+
+            var payload = new DiscordEventPayload(
+                    "GUILD_UPDATED", correlationId, "low",
+                    guild, null, null, null, null, 1, List.of(), raw);
+
+            eventRouter.route(payload, null);
+            inboundEventLogService.log(payload);
+            guildLifecycleService.onUpdate(event.getGuild(), "BOOST_TIER_CHANGED",
+                    Map.of("oldTier", event.getOldBoostTier().getKey(),
+                           "newTier", event.getNewBoostTier().getKey()));
         } finally {
             MDC.clear();
         }
@@ -490,17 +579,19 @@ public class DiscordEventListener extends ListenerAdapter {
 
     private List<String> relayAttachments(
             List<net.dv8tion.jda.api.entities.Message.Attachment> attachments,
-            String guildId, String messageId, String eventType, Runnable ephemeralFallback) {
+            Guild guild, String messageId, String eventType, Runnable ephemeralFallback) {
         if (attachments.isEmpty()) return List.of();
+        String guildId = guild.getId();
         if (!guildConfigService.isRelayEnabled(guildId)) {
             log.debug("Attachment relay disabled for guild {} — publishing event without attachments", guildId);
             return List.of();
         }
+        long tierMaxSizeBytes = guild.getBoostTier().getMaxFileSize();
         List<String> urls = new ArrayList<>();
         try {
             for (var att : attachments) {
                 String url = attachmentRelayService.relay(
-                        att.getUrl(), att.getFileName(), att.getSize(), guildId, messageId);
+                        att.getUrl(), att.getFileName(), att.getSize(), guildId, messageId, tierMaxSizeBytes);
                 urls.add(url);
             }
             return urls;
@@ -511,6 +602,18 @@ public class DiscordEventListener extends ListenerAdapter {
             if (ephemeralFallback != null) ephemeralFallback.run();
             return null;
         }
+    }
+
+    private static Map<String, Object> buildTierInfo(Guild guild) {
+        var tier = guild.getBoostTier();
+        var params = new HashMap<String, Object>();
+        params.put("level", tier.getKey());
+        params.put("boostCount", guild.getBoostCount());
+        params.put("maxFileSizeBytes", tier.getMaxFileSize());
+        params.put("maxFileSizeMb", tier.getMaxFileSize() / (1024 * 1024));
+        params.put("maxBitrateKbps", tier.getMaxBitrate() / 1000);
+        params.put("maxEmojis", tier.getMaxEmojis());
+        return params;
     }
 
     private static Map<String, Object> buildMessageRaw(net.dv8tion.jda.api.entities.Message message) {

@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.Optional;
 
@@ -65,7 +66,7 @@ class AttachmentRelayIT {
         when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
 
         relayService = new AttachmentRelayService(
-                url -> ("content-of:" + url).getBytes(),
+                url -> new ByteArrayInputStream(("content-of:" + url).getBytes()),
                 s3Client,
                 CircuitBreaker.ofDefaults("garage-test"),
                 guildConfigRepository,
@@ -79,7 +80,7 @@ class AttachmentRelayIT {
     void relayUploadsBytesToS3AndReturnsInternalUrl() {
         String internalUrl = relayService.relay(
                 "https://cdn.discordapp.com/attachments/123/456/test.txt",
-                "test.txt", 100L, "guild-1", "msg-1");
+                "test.txt", 100L, "guild-1", "msg-1", 0L);
 
         assertThat(internalUrl).contains("guild-1/msg-1/test.txt");
         assertThat(internalUrl).contains(BUCKET);
@@ -94,7 +95,7 @@ class AttachmentRelayIT {
     void attachmentAboveLimitThrowsBeforeDownload() {
         assertThatThrownBy(() ->
                 relayService.relay("https://cdn.discordapp.com/huge.bin", "huge.bin",
-                        DEFAULT_MAX + 1, "guild-1", "msg-2"))
+                        DEFAULT_MAX + 1, "guild-1", "msg-2", 0L))
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("exceeds");
     }
@@ -114,7 +115,7 @@ class AttachmentRelayIT {
 
         assertThatThrownBy(() ->
                 failingService.relay("https://cdn.discordapp.com/file.png", "file.png",
-                        100L, "guild-1", "msg-3"))
+                        100L, "guild-1", "msg-3", 0L))
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("Failed to relay");
     }
@@ -128,7 +129,7 @@ class AttachmentRelayIT {
         openCb.transitionToOpenState();
 
         var cbService = new AttachmentRelayService(
-                url -> "bytes".getBytes(),
+                url -> new ByteArrayInputStream("bytes".getBytes()),
                 s3Client,
                 openCb,
                 guildConfigRepository,
@@ -137,7 +138,7 @@ class AttachmentRelayIT {
 
         assertThatThrownBy(() ->
                 cbService.relay("https://cdn.discordapp.com/file.png", "file.png",
-                        100L, "guild-1", "msg-4"))
+                        100L, "guild-1", "msg-4", 0L))
                 .isInstanceOf(AttachmentRelayException.class);
     }
 }

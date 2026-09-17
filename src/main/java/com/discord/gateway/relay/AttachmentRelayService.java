@@ -45,8 +45,9 @@ public class AttachmentRelayService {
         this.endpoint = endpoint;
     }
 
-    public String relay(String discordUrl, String filename, long sizeBytes, String guildId, String messageId) {
-        long maxSize = resolveMaxSize(guildId);
+    public String relay(String discordUrl, String filename, long sizeBytes,
+                        String guildId, String messageId, long tierMaxSizeBytes) {
+        long maxSize = resolveMaxSize(guildId, tierMaxSizeBytes);
         if (sizeBytes > maxSize) {
             meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "size_limit").increment();
             throw new AttachmentRelayException(
@@ -56,7 +57,10 @@ public class AttachmentRelayService {
         String key = guildId + "/" + messageId + "/" + filename;
         try {
             garageCb.executeCallable(() -> {
-                byte[] bytes = downloader.download(discordUrl);
+                byte[] bytes;
+                try (var stream = downloader.download(discordUrl)) {
+                    bytes = stream.readAllBytes();
+                }
                 s3Client.putObject(
                         PutObjectRequest.builder()
                                 .bucket(bucket)
@@ -74,16 +78,17 @@ public class AttachmentRelayService {
         }
     }
 
-    private long resolveMaxSize(String guildId) {
-        if (guildId == null) return defaultMaxSizeBytes;
+    private long resolveMaxSize(String guildId, long tierMaxSizeBytes) {
+        long fallback = tierMaxSizeBytes > 0 ? tierMaxSizeBytes : defaultMaxSizeBytes;
+        if (guildId == null) return fallback;
         try {
             return guildConfigRepository
                     .findByGuildIdAndParam(guildId, GuildParam.MAX_ATTACHMENT_SIZE_BYTES)
                     .map(c -> Long.parseLong(c.getValue()))
-                    .orElse(defaultMaxSizeBytes);
+                    .orElse(fallback);
         } catch (Exception e) {
-            log.warn("Failed to resolve guild-specific max size for guild {}, using default", guildId, e);
-            return defaultMaxSizeBytes;
+            log.warn("Failed to resolve guild-specific max size for guild {}, using tier/default", guildId, e);
+            return fallback;
         }
     }
 }

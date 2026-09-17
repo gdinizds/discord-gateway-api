@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import java.io.ByteArrayInputStream;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,7 +37,7 @@ class AttachmentSizeLimitTest {
     void setUp() {
         when(guildConfigRepository.findByGuildIdAndParam(anyString(), any())).thenReturn(Optional.empty());
         relayService = new AttachmentRelayService(
-                url -> "bytes".getBytes(),
+                url -> new ByteArrayInputStream("bytes".getBytes()),
                 s3Client,
                 CircuitBreaker.ofDefaults("garage-test"),
                 guildConfigRepository,
@@ -50,14 +51,14 @@ class AttachmentSizeLimitTest {
     void attachmentBelowGlobalLimitSucceeds() {
         assertThatNoException().isThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/file.txt", "file.txt",
-                        DEFAULT_MAX - 1, "guild-1", "msg-1"));
+                        DEFAULT_MAX - 1, "guild-1", "msg-1", 0L));
     }
 
     @Test
     void attachmentAtGlobalLimitIsRejected() {
         assertThatThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/huge.bin", "huge.bin",
-                        DEFAULT_MAX + 1, "guild-1", "msg-1"))
+                        DEFAULT_MAX + 1, "guild-1", "msg-1", 0L))
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("exceeds");
     }
@@ -71,7 +72,7 @@ class AttachmentSizeLimitTest {
 
         assertThatThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/medium.png", "medium.png",
-                        guildMax + 1, "guild-special", "msg-2"))
+                        guildMax + 1, "guild-special", "msg-2", 0L))
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("exceeds");
     }
@@ -85,6 +86,40 @@ class AttachmentSizeLimitTest {
 
         assertThatNoException().isThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/small.png", "small.png",
-                        100L, "guild-special", "msg-3"));
+                        100L, "guild-special", "msg-3", 0L));
+    }
+
+    @Test
+    void tierLimitUsedWhenNoDbConfigAndAboveDefault() {
+        long tierMax = 52_428_800L; // 50 MB (boost tier 2)
+        // file is 30 MB — above the 25 MB default but within tier limit
+        assertThatNoException().isThrownBy(() ->
+                relayService.relay("http://cdn.discord.com/large.mp4", "large.mp4",
+                        DEFAULT_MAX + 1_000_000, "guild-tier2", "msg-4", tierMax));
+    }
+
+    @Test
+    void tierLimitRejectedWhenExceeded() {
+        long tierMax = 31_457_280L; // 30 MB
+        assertThatThrownBy(() ->
+                relayService.relay("http://cdn.discord.com/toobig.mp4", "toobig.mp4",
+                        tierMax + 1, "guild-tier1", "msg-5", tierMax))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("exceeds");
+    }
+
+    @Test
+    void dbConfigOverridesTierLimit() {
+        long tierMax = 52_428_800L; // 50 MB tier
+        long dbMax   = 5_242_880L;  // 5 MB admin override — stricter
+        var config = new GuildConfig("guild-restricted", GuildParam.MAX_ATTACHMENT_SIZE_BYTES, String.valueOf(dbMax));
+        when(guildConfigRepository.findByGuildIdAndParam("guild-restricted", GuildParam.MAX_ATTACHMENT_SIZE_BYTES))
+                .thenReturn(Optional.of(config));
+
+        assertThatThrownBy(() ->
+                relayService.relay("http://cdn.discord.com/medium.mp4", "medium.mp4",
+                        dbMax + 1, "guild-restricted", "msg-6", tierMax))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("exceeds");
     }
 }
