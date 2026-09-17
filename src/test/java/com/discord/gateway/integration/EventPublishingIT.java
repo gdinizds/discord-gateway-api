@@ -37,8 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EventPublishingIT {
 
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestPostgresImage.IMAGE)
-            .withDatabaseName("gateway_test")
+    static PostgreSQLContainer postgres = TestPostgresImage.newContainer("gateway_test")
             .withUsername("test")
             .withPassword("test");
 

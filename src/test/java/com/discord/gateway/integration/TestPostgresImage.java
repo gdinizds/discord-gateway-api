@@ -8,11 +8,19 @@ import java.nio.file.Paths;
 
 final class TestPostgresImage {
 
-    static final DockerImageName IMAGE = DockerImageName.parse(
+    private static final DockerImageName IMAGE = DockerImageName.parse(
             new ImageFromDockerfile()
                     .withDockerfile(Paths.get("docker/postgres/Dockerfile"))
                     .get()
     ).asCompatibleSubstituteFor(PostgreSQLContainer.IMAGE);
+
+    static PostgreSQLContainer newContainer(String databaseName) {
+        return new PostgreSQLContainer(IMAGE)
+                .withCommand("postgres",
+                        "-c", "shared_preload_libraries=pg_cron",
+                        "-c", "cron.database_name=" + databaseName)
+                .withDatabaseName(databaseName);
+    }
 
     private TestPostgresImage() {
     }
