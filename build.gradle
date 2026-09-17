@@ -24,12 +24,14 @@ ext {
     awsSdkVersion     = '2.29.50'
     uuidGeneratorVersion = '5.1.0'
     logstashVersion   = '8.0'
+    springCloudVersion = '2025.1.3'
 }
 
 dependencyManagement {
     imports {
         mavenBom "software.amazon.awssdk:bom:${awsSdkVersion}"
         mavenBom "io.github.resilience4j:resilience4j-bom:${resilience4jVersion}"
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
     }
 }
 
@@ -38,6 +40,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // Config não-sensível externalizada (Consul KV). Segredos vêm do Vault Agent
+    // Injector (sidecar no k8s), sem necessidade de client Vault na aplicação.
+    implementation 'org.springframework.cloud:spring-cloud-starter-consul-config'
 
     // Spring Kafka
     implementation 'org.springframework.boot:spring-boot-starter-kafka'

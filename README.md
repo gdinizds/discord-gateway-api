@@ -136,44 +136,33 @@ Todos os tópicos inbound usam o mesmo envelope. A chave do registro Kafka é se
 
 ---
 
-## Variáveis de Ambiente
+## Configuração por Ambiente
 
-| Variável | Descrição |
-|---|---|
-| `DISCORD_BOT_TOKEN` | Token do bot Discord |
-| `DB_URL` | JDBC URL do PostgreSQL |
-| `DB_USERNAME` | Usuário da aplicação (DML) |
-| `DB_PASSWORD` | Senha do usuário da aplicação |
-| `SPRING_FLYWAY_USER` | Usuário de migração (DDL) |
-| `SPRING_FLYWAY_PASSWORD` | Senha do usuário de migração |
-| `REDPANDA_BOOTSTRAP_SERVERS` | Endereço do broker Redpanda |
-| `GARAGE_ENDPOINT` | Endpoint S3-compatible (Garage ou MinIO) |
-| `GARAGE_BUCKET` | Bucket para relay de anexos |
-| `GARAGE_REGION` | Região do bucket |
-| `GARAGE_ACCESS_KEY` | Access key S3 |
-| `GARAGE_SECRET_KEY` | Secret key S3 |
-| `ATTACHMENT_MAX_SIZE_BYTES` | Limite global de tamanho de anexo (padrão: 26214400 = 25 MB) |
+O `application.yml` só guarda o que é igual em qualquer ambiente (nomes de tópico, pool do Kafka, actuator, circuit breakers). O que muda por ambiente vem de fora:
+
+- **Consul KV** — config não-sensível que sobra fora do Vault (bootstrap do Kafka, limites, região)
+- **Vault Agent Injector** (sidecar, Kubernetes Auth Method) — segredos (banco, S3/Garage, bot token), injetados como arquivo no pod
+
+Os perfis `local`, `test` e `integration-test` continuam 100% autocontidos (não tocam Consul — veja `spring.cloud.consul.config.enabled: false` em cada um). Só o perfil padrão (usado no cluster) busca o Consul e os arquivos injetados pelo Vault Agent, via `spring.config.import` em `application.yml`.
+
+Valores reais, comandos `consul kv put` / `vault kv put` e os templates do Vault Agent Injector estão documentados em [`docs/infra-reference.md`](docs/infra-reference.md) — não duplicados aqui porque mudam com a infra, não com o código.
 
 ---
 
 ## Rodando Localmente
 
-Pré-requisitos: Docker, Java 25.
+Pré-requisitos: Java 25.
 
 ```bash
-# Sobe Postgres, Redpanda e MinIO
-DISCORD_BOT_TOKEN=seu-token docker compose up -d
-
-# Executa a aplicação fora do compose (desenvolvimento)
-./gradlew bootRun
+./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-A aplicação sobe na porta `8080`. Redpanda acessível em `localhost:19092`.
+Sobe em memória com H2, sem nenhuma infra externa. A aplicação fica disponível na porta `8080`.
 
-Para rodar dentro do compose junto à infraestrutura:
+Para gerar a imagem de produção:
 
 ```bash
-DISCORD_BOT_TOKEN=seu-token docker compose up --build
+docker build -t discord-event-gateway .
 ```
 
 ---

@@ -1,27 +1,39 @@
 spring:
   application:
     name: discord-event-gateway
+  config:
+    import: "optional:consul:,optional:file:/vault/secrets/db.yaml,optional:file:/vault/secrets/s3.yaml"
+
+  cloud:
+    consul:
+      host: ${SPRING_CLOUD_CONSUL_HOST:consul.consul.svc.cluster.local}
+      port: ${SPRING_CLOUD_CONSUL_PORT:8500}
+      config:
+        enabled: true
+        format: YAML
+        data-key: data
+
   threads:
     virtual:
       enabled: true
+
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
     hikari:
       data-source-properties:
         stringtype: unspecified
+
   flyway:
     locations: classpath:db/migration/postgresql
     schemas: gateway
     baseline-on-migrate: false
+
   jpa:
     hibernate:
       ddl-auto: none
     show-sql: false
     open-in-view: false
+
   kafka:
-    bootstrap-servers: ${REDPANDA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: discord-gateway
       auto-offset-reset: earliest
@@ -36,17 +48,7 @@ spring:
     listener:
       ack-mode: MANUAL_IMMEDIATE
 
-discord:
-  bot:
-    token: ${DISCORD_BOT_TOKEN}
-
 gateway:
-  garage:
-    endpoint: ${GARAGE_ENDPOINT:http://192.168.10.96}
-    bucket: ${GARAGE_BUCKET:discord-attachments}
-    region: ${GARAGE_REGION:garage}
-  attachments:
-    max-size-bytes: ${ATTACHMENT_MAX_SIZE_BYTES:26214400}
   topics:
     MESSAGE_CREATED:
       topic: discord.events.message.created
