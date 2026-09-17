@@ -170,6 +170,6 @@ class ResponseDispatchIT {
         kafkaTemplate.send(TOPIC, "guild-123", objectMapper.writeValueAsString(payload));
 
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
-                verify(mockHook).sendMessage("Processing complete"));
+                verify(mockHook).editOriginal("Processing complete"));
     }
 }
