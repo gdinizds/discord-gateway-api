@@ -42,7 +42,7 @@ spec:
       serviceAccountName: discord-gateway-api
       containers:
         - name: gateway
-          image: localhost:32000/discord-event-gateway:latest
+          image: ghcr.io/gdinizds/discord-event-gateway:latest
           ports:
             - containerPort: 8080
           env:
