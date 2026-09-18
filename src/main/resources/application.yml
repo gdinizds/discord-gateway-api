@@ -2,7 +2,7 @@ spring:
   application:
     name: discord-event-gateway
   config:
-    import: "optional:consul:,optional:file:/vault/secrets/db.yaml,optional:file:/vault/secrets/s3.yaml"
+    import: "optional:consul:,optional:file:/vault/secrets/db.yaml,optional:file:/vault/secrets/s3.yaml,optional:file:/vault/secrets/discord.yaml"
 
   cloud:
     consul:
