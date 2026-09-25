@@ -19,8 +19,18 @@ spring:
 
   datasource:
     hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: DiscordGatewayHikariPool
       data-source-properties:
         stringtype: unspecified
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
 
   flyway:
     locations: classpath:db/migration/postgresql
@@ -32,6 +42,12 @@ spring:
       ddl-auto: none
     show-sql: false
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
   kafka:
     consumer:
@@ -45,8 +61,14 @@ spring:
       acks: all
       retries: 3
       compression-type: lz4
+      batch-size: 65536
+      buffer-memory: 67108864
+      properties:
+        linger.ms: 5
+        max.in.flight.requests.per.connection: 5
     listener:
       ack-mode: MANUAL_IMMEDIATE
+      concurrency: 4
 
 gateway:
   topics:
@@ -92,19 +114,22 @@ resilience4j:
     instances:
       redpanda:
         sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
+        permitted-number-of-calls-in-half-open-state: 5
       postgresql:
         sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
+        permitted-number-of-calls-in-half-open-state: 5
       garage:
         sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
+        permitted-number-of-calls-in-half-open-state: 5

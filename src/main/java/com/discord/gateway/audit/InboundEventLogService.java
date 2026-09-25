@@ -4,15 +4,18 @@ import com.discord.gateway.domain.MessageDirection;
 import com.discord.gateway.domain.MessageLog;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.repository.MessageLogRepository;
-import tools.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 public class InboundEventLogService {
@@ -23,6 +26,7 @@ public class InboundEventLogService {
     private final CircuitBreaker postgresqlCb;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final ExecutorService auditExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public InboundEventLogService(MessageLogRepository messageLogRepository,
                                   CircuitBreaker postgresqlCircuitBreaker,
@@ -35,6 +39,10 @@ public class InboundEventLogService {
     }
 
     public void log(DiscordEventPayload payload) {
+        auditExecutor.submit(() -> doLog(payload));
+    }
+
+    private void doLog(DiscordEventPayload payload) {
         try {
             var payloadJson = objectMapper.writeValueAsString(payload);
             var correlationId = UUID.fromString(payload.correlationId());
@@ -69,5 +77,10 @@ public class InboundEventLogService {
             log.warn("Failed to look up correlation for message {}", discordMessageId, e);
             return Optional.empty();
         }
+    }
+
+    @PreDestroy
+    public void close() {
+        auditExecutor.close();
     }
 }

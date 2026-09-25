@@ -10,17 +10,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class EventRouter {
 
     private static final Logger log = LoggerFactory.getLogger(EventRouter.class);
+    private static final long CACHE_TTL_MS = 60_000;
+
+    private record ChannelFilter(boolean allowAll, Set<String> allowedChannels, long expiryTimeMs) {}
 
     private final TopicRegistry topicRegistry;
     private final EventPublisher eventPublisher;
     private final GuildConfigRepository guildConfigRepository;
     private final MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, ChannelFilter> channelFilterCache = new ConcurrentHashMap<>();
 
     public EventRouter(TopicRegistry topicRegistry,
                        EventPublisher eventPublisher,
@@ -66,17 +74,36 @@ public class EventRouter {
         return published;
     }
 
+    public void evictChannelFilterCache(String guildId) {
+        if (guildId != null) {
+            channelFilterCache.remove(guildId);
+        }
+    }
+
     private boolean isChannelAllowed(String guildId, String channelId) {
         if (guildId == null || channelId == null) return true;
         try {
-            var config = guildConfigRepository.findByGuildIdAndParam(guildId, GuildParam.ALLOWED_CHANNELS);
-            if (config.isEmpty()) return true;
-            String value = config.get().getValue();
-            if ("*".equals(value)) return true;
-            for (String id : value.split(",")) {
-                if (channelId.equals(id.strip())) return true;
+            long now = System.currentTimeMillis();
+            ChannelFilter filter = channelFilterCache.get(guildId);
+            if (filter == null || now > filter.expiryTimeMs()) {
+                var config = guildConfigRepository.findByGuildIdAndParam(guildId, GuildParam.ALLOWED_CHANNELS);
+                if (config.isEmpty()) {
+                    filter = new ChannelFilter(true, Set.of(), now + CACHE_TTL_MS);
+                } else {
+                    String value = config.get().getValue();
+                    if ("*".equals(value)) {
+                        filter = new ChannelFilter(true, Set.of(), now + CACHE_TTL_MS);
+                    } else {
+                        Set<String> set = Arrays.stream(value.split(","))
+                                .map(String::strip)
+                                .filter(s -> !s.isEmpty())
+                                .collect(Collectors.toSet());
+                        filter = new ChannelFilter(false, set, now + CACHE_TTL_MS);
+                    }
+                }
+                channelFilterCache.put(guildId, filter);
             }
-            return false;
+            return filter.allowAll() || filter.allowedChannels().contains(channelId);
         } catch (Exception e) {
             log.warn("Failed to check ALLOWED_CHANNELS for guild {}, allowing by default", guildId, e);
             return true;

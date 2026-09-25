@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.5'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.graalvm.buildtools.native' version '0.11.1'
 }
 
 group = 'dev.gdiniz'
@@ -91,7 +92,27 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+graalvmNative {
+    binaries {
+        main {
+            imageName = 'discord-event-gateway'
+            mainClass = 'com.discord.gateway.DiscordEventGatewayApplication'
+            buildArgs.addAll(
+                '--no-fallback',
+                '--enable-url-protocols=http,https',
+                '-H:+ReportExceptionStackTraces'
+            )
+        }
+    }
+}
+
+
+tasks.matching { it.name.startsWith("processTestAot") || it.name.startsWith("aotTest") }.configureEach {
+    enabled = false
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    timeout = java.time.Duration.ofMinutes(3)
     environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
 }

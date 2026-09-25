@@ -10,14 +10,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 @Service
 public class GuildConfigService {
 
     private static final Logger log = LoggerFactory.getLogger(GuildConfigService.class);
+    private static final long CACHE_TTL_MS = 60_000;
+
+    private record CachedBool(boolean value, long expiryTimeMs) {}
 
     private final GuildConfigRepository repository;
     private final CircuitBreaker postgresqlCb;
     private final MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, CachedBool> relayEnabledCache = new ConcurrentHashMap<>();
 
     public record ConfigResult(boolean success, String message) {}
 
@@ -30,10 +36,17 @@ public class GuildConfigService {
     }
 
     public boolean isRelayEnabled(String guildId) {
+        long now = System.currentTimeMillis();
+        var cached = relayEnabledCache.get(guildId);
+        if (cached != null && now <= cached.expiryTimeMs()) {
+            return cached.value();
+        }
         try {
-            return repository.findByGuildIdAndParam(guildId, GuildParam.ATTACHMENT_RELAY_ENABLED)
+            boolean enabled = repository.findByGuildIdAndParam(guildId, GuildParam.ATTACHMENT_RELAY_ENABLED)
                     .map(c -> "true".equals(c.getValue()))
                     .orElse(true);
+            relayEnabledCache.put(guildId, new CachedBool(enabled, now + CACHE_TTL_MS));
+            return enabled;
         } catch (Exception e) {
             log.warn("Failed to check ATTACHMENT_RELAY_ENABLED for guild {}, allowing by default", guildId, e);
             return true;
@@ -57,6 +70,7 @@ public class GuildConfigService {
                     repository.save(new GuildConfig(guildId, param, value));
                 }
             });
+            relayEnabledCache.remove(guildId);
             meterRegistry.counter("discord.gateway.config.updated", "param", param.name()).increment();
             return new ConfigResult(true,
                     "Parâmetro `%s` atualizado para `%s`.".formatted(param.name(), value));

@@ -8,12 +8,15 @@ import com.discord.gateway.repository.MessageLogRepository;
 import tools.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 public class MessageLogService {
@@ -24,6 +27,7 @@ public class MessageLogService {
     private final CircuitBreaker postgresqlCb;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final ExecutorService auditExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public MessageLogService(MessageLogRepository messageLogRepository,
                              CircuitBreaker postgresqlCircuitBreaker,
@@ -37,6 +41,11 @@ public class MessageLogService {
 
     public void logOutbound(OutboundResponsePayload payload, DispatchResult result,
                             String guildId, String userId) {
+        auditExecutor.submit(() -> doLogOutbound(payload, result, guildId, userId));
+    }
+
+    private void doLogOutbound(OutboundResponsePayload payload, DispatchResult result,
+                              String guildId, String userId) {
         try {
             var correlationId = payload.correlationId() != null
                     ? UUID.fromString(payload.correlationId())
@@ -63,5 +72,10 @@ public class MessageLogService {
                     payload.responseType(), e);
             meterRegistry.counter("discord.gateway.audit.errors", "direction", "OUTBOUND").increment();
         }
+    }
+
+    @PreDestroy
+    public void close() {
+        auditExecutor.close();
     }
 }

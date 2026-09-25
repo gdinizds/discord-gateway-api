@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
@@ -33,6 +34,8 @@ public class JdaConfig {
                         GatewayIntent.GUILD_MEMBERS,
                         GatewayIntent.GUILD_MODERATION)
                 .setHttpClient(httpClient)
+                .setEventPool(Executors.newVirtualThreadPerTaskExecutor())
+                .setCallbackPool(Executors.newVirtualThreadPerTaskExecutor())
                 .addEventListeners(listener, reconciliation)
                 .build()
                 .awaitReady();
