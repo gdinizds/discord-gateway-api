@@ -36,6 +36,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @ActiveProfiles("integration-test")
 @Testcontainers
+@RequiresDocker
 class ResponseDispatchIT {
 
     @Container

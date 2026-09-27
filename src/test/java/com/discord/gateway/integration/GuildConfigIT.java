@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@RequiresDocker
 class GuildConfigIT {
 
     @MockitoBean JDA jda;

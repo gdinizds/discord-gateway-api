@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("integration-test")
 @Testcontainers
+@RequiresDocker
 class EventPublishingIT {
 
     @Container
