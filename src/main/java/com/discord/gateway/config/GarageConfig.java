@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 
@@ -45,6 +46,14 @@ public class GarageConfig {
     public AttachmentDownloader attachmentDownloader(S3Client s3Client) {
         return url -> {
             try {
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    if (url.contains("discordapp.com") || url.contains("discordapp.net")) {
+                        URLConnection conn = URI.create(url).toURL().openConnection();
+                        conn.setRequestProperty("User-Agent", "DiscordBot (Gateway, 1.0)");
+                        return conn.getInputStream();
+                    }
+                }
+                
                 String path = URI.create(url).getRawPath();
                 if (path.startsWith("/")) path = path.substring(1);
                 int slash = path.indexOf('/');
@@ -55,7 +64,7 @@ public class GarageConfig {
             } catch (IOException e) {
                 throw e;
             } catch (Exception e) {
-                throw new IOException("Failed to download attachment from S3: " + url, e);
+                throw new IOException("Failed to download attachment: " + url, e);
             }
         };
     }
