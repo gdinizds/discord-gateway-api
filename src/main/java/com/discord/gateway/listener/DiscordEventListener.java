@@ -139,8 +139,14 @@ public class DiscordEventListener extends ListenerAdapter {
         MDC.put("correlation_id", correlationId);
         MDC.put("topic", topicRegistry.get("MESSAGE_COMMAND").topic());
         MDC.put("priority", "normal");
-        MDC.put("has_attachments", "false");
+        
         try {
+            List<String> relayedUrls = relayAttachments(
+                    event.getMessage().getAttachments(), event.getGuild(), messageId, "MESSAGE_COMMAND", null);
+            if (relayedUrls == null) return;
+            
+            MDC.put("has_attachments", String.valueOf(!relayedUrls.isEmpty()));
+
             var user = UserInfo.builder()
                     .id(event.getAuthor().getId())
                     .username(event.getAuthor().getName())
@@ -155,7 +161,7 @@ public class DiscordEventListener extends ListenerAdapter {
             var rawPayload = args.isEmpty() ? Map.<String, Object>of() : Map.<String, Object>of("args", args);
             var payload = new DiscordEventPayload(
                     "MESSAGE_COMMAND", correlationId, "normal",
-                    guild, channelId, user, null, messageId, 1, List.of(), rawPayload);
+                    guild, channelId, user, null, messageId, 1, relayedUrls, rawPayload);
 
             eventRouter.route(payload, null, Map.of("command-name", commandName));
             inboundEventLogService.log(payload);
