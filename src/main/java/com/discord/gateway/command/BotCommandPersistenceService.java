@@ -46,11 +46,14 @@ public class BotCommandPersistenceService {
                 if (existing.isPresent()) {
                     var cmd = existing.get();
                     cmd.update(payload.description(), serializeParameters(payload), payload.isDeleted());
+                    cmd.setEphemeral(payload.isEphemeral());
                     return cmd;
                 }
-                return commandRepository.save(new BotCommand(
+                var created = new BotCommand(
                         guildId, prefix,
-                        payload.name(), payload.description(), serializeParameters(payload)));
+                        payload.name(), payload.description(), serializeParameters(payload));
+                created.setEphemeral(payload.isEphemeral());
+                return commandRepository.save(created);
             });
         } catch (Exception e) {
             throw new RuntimeException("Failed to upsert bot command", e);

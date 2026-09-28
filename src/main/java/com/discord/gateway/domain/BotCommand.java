@@ -35,6 +35,9 @@ public class BotCommand {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
+    @Column(nullable = false)
+    private boolean ephemeral;
+
     @Column(name = "discord_command_id", length = 20)
     private String discordCmdId;
 
@@ -67,6 +70,7 @@ public class BotCommand {
     }
 
     public void setDiscordCmdId(String id) { this.discordCmdId = id; }
+    public void setEphemeral(boolean ephemeral) { this.ephemeral = ephemeral; }
 
     public Long getId()             { return id; }
     public String getGuildId()      { return guildId; }
@@ -76,5 +80,6 @@ public class BotCommand {
     public String getParameters()   { return parameters; }
     public int getVersion()         { return version; }
     public boolean isDeleted()      { return deleted; }
+    public boolean isEphemeral()    { return ephemeral; }
     public String getDiscordCmdId() { return discordCmdId; }
 }

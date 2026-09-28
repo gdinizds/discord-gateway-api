@@ -3,6 +3,7 @@ package com.discord.gateway.listener;
 import com.discord.gateway.audit.GuildConfigService;
 import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
+import com.discord.gateway.command.EphemeralCommandRegistry;
 import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.model.AttachmentRelayException;
@@ -51,6 +52,7 @@ public class DiscordEventListener extends ListenerAdapter {
     private final GuildConfigService guildConfigService;
     private final TopicRegistry topicRegistry;
     private final MeterRegistry meterRegistry;
+    private final EphemeralCommandRegistry ephemeralCommands;
 
     public DiscordEventListener(EventRouter eventRouter,
                                 InboundEventLogService inboundEventLogService,
@@ -59,7 +61,8 @@ public class DiscordEventListener extends ListenerAdapter {
                                 GuildLifecycleService guildLifecycleService,
                                 GuildConfigService guildConfigService,
                                 TopicRegistry topicRegistry,
-                                MeterRegistry meterRegistry) {
+                                MeterRegistry meterRegistry,
+                                EphemeralCommandRegistry ephemeralCommands) {
         this.eventRouter = eventRouter;
         this.inboundEventLogService = inboundEventLogService;
         this.attachmentRelayService = attachmentRelayService;
@@ -68,6 +71,7 @@ public class DiscordEventListener extends ListenerAdapter {
         this.guildConfigService = guildConfigService;
         this.topicRegistry = topicRegistry;
         this.meterRegistry = meterRegistry;
+        this.ephemeralCommands = ephemeralCommands;
     }
 
     @Override
@@ -259,7 +263,8 @@ public class DiscordEventListener extends ListenerAdapter {
                             .setEphemeral(true).queue(),
                     Map.of("command-name", commandName));
             if (published) {
-                event.deferReply().queue(hook -> hookRegistry.register(token, hook));
+                boolean ephemeral = ephemeralCommands.isEphemeral(guildId, event.getName());
+                event.deferReply(ephemeral).queue(hook -> hookRegistry.register(token, hook));
             }
             inboundEventLogService.log(payload);
         } finally {
