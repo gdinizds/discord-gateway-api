@@ -32,7 +32,13 @@ public class InteractionHookRegistry {
     }
 
     public void register(String interactionToken, InteractionHook hook) {
-        hooks.computeIfAbsent(interactionToken, t -> newEntry()).hook().complete(hook);
+        hooks.compute(interactionToken, (token, entry) -> {
+            if (entry != null && !entry.hook().isDone()) {
+                entry.hook().complete(hook);
+                return entry;
+            }
+            return new HookEntry(CompletableFuture.completedFuture(hook), System.currentTimeMillis());
+        });
     }
 
     public Optional<InteractionHook> getHook(String interactionToken) {
