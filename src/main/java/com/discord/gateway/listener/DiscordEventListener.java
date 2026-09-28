@@ -34,7 +34,6 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,12 +121,8 @@ public class DiscordEventListener extends ListenerAdapter {
     }
 
     private void handleDotCommand(MessageReceivedEvent event, String content) {
-        String withoutDot = content.substring(1).trim();
-        String[] parts = withoutDot.split("\\s+", 2);
-        String commandName = parts[0].toLowerCase();
-        List<String> args = parts.length > 1 && !parts[1].isBlank()
-                ? Arrays.asList(parts[1].trim().split("\\s+"))
-                : List.of();
+        var parsed = DotCommandParser.parse(content);
+        String commandName = parsed.name();
 
         String guildId      = event.getGuild().getId();
         String channelId    = event.getChannel().getId();
@@ -158,7 +153,7 @@ public class DiscordEventListener extends ListenerAdapter {
                     .iconUrl(event.getGuild().getIconUrl())
                     .build();
 
-            var rawPayload = args.isEmpty() ? Map.<String, Object>of() : Map.<String, Object>of("args", args);
+            var rawPayload = buildDotCommandRaw(parsed, event.getMessage());
             var payload = new DiscordEventPayload(
                     "MESSAGE_COMMAND", correlationId, "normal",
                     guild, channelId, user, null, messageId, 1, relayedUrls, rawPayload);
@@ -625,6 +620,21 @@ public class DiscordEventListener extends ListenerAdapter {
     private static Map<String, Object> buildMessageRaw(net.dv8tion.jda.api.entities.Message message) {
         Map<String, Object> raw = new HashMap<>();
         raw.put("content", message.getContentRaw());
+        putReferencedMessage(raw, message);
+        return raw;
+    }
+
+    private static Map<String, Object> buildDotCommandRaw(DotCommandParser.ParsedDotCommand parsed,
+                                                          net.dv8tion.jda.api.entities.Message message) {
+        Map<String, Object> raw = new HashMap<>();
+        if (!parsed.args().isEmpty()) raw.put("args", parsed.args());
+        if (!parsed.content().isEmpty()) raw.put("content", parsed.content());
+        putReferencedMessage(raw, message);
+        return raw;
+    }
+
+    private static void putReferencedMessage(Map<String, Object> raw,
+                                             net.dv8tion.jda.api.entities.Message message) {
         var ref = message.getReferencedMessage();
         if (ref != null) {
             raw.put("referencedMessage", ReferencedMessageInfo.builder()
@@ -633,7 +643,6 @@ public class DiscordEventListener extends ListenerAdapter {
                     .userId(ref.getAuthor().getId())
                     .build());
         }
-        return raw;
     }
 
     private static String newCorrelationId() {
