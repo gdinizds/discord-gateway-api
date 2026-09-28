@@ -45,6 +45,27 @@ jobs:
                           print(f"::error title={case.get('classname')}.{case.get('name')}::{first}")
           EOF
 
+      - name: Test summary
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'EOF' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          total = skipped = failed = 0
+          skipped_suites = []
+          for path in glob.glob("build/test-results/test/*.xml"):
+              s = ET.parse(path).getroot()
+              t, sk = int(s.get("tests", 0)), int(s.get("skipped", 0))
+              total += t; skipped += sk
+              failed += int(s.get("failures", 0)) + int(s.get("errors", 0))
+              if t and sk == t:
+                  skipped_suites.append(s.get("name").rsplit(".", 1)[-1])
+          print(f"tests={total} failed={failed} skipped={skipped}")
+          if skipped_suites:
+              print("fully skipped: " + ", ".join(sorted(skipped_suites)))
+          EOF
+          echo "::notice title=Tests::$(tail -n 2 "$GITHUB_STEP_SUMMARY" | tr '\n' ' ')"
+
       - name: Publish test report
         if: always()
         uses: actions/upload-artifact@v4
