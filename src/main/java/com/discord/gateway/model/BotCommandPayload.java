@@ -13,8 +13,19 @@ public record BotCommandPayload(
         String name,
         String description,
         List<Map<String, Object>> parameters,
-        @JsonProperty("is_deleted") boolean isDeleted
+        @JsonProperty("is_deleted") boolean isDeleted,
+        @JsonProperty("ephemeral")  Boolean ephemeral
 ) {
+    public BotCommandPayload(String guildId, String prefix, String name, String description,
+                             List<Map<String, Object>> parameters, boolean isDeleted) {
+        this(guildId, prefix, name, description, parameters, isDeleted, null);
+    }
+
+    /** Whether the gateway should defer this slash command ephemerally. Absent means false. */
+    public boolean isEphemeral() {
+        return Boolean.TRUE.equals(ephemeral);
+    }
+
     public boolean isValid() {
         return name != null && !name.isBlank()
                 && prefix != null && !prefix.isBlank()

@@ -28,12 +28,13 @@ public class BotCommandConsumerTest {
     @Mock private BotCommandPersistenceService persistence;
     @Mock private JDA jda;
     @Mock private ObjectMapper objectMapper;
+    @Mock private EphemeralCommandRegistry ephemeralCommands;
 
     private BotCommandConsumer consumer;
 
     @BeforeEach
     void setUp() {
-        consumer = new BotCommandConsumer(persistence, jda, objectMapper);
+        consumer = new BotCommandConsumer(persistence, jda, objectMapper, ephemeralCommands);
     }
 
     @Test
@@ -76,6 +77,7 @@ public class BotCommandConsumerTest {
         verify(ack).acknowledge();
         verify(jda).upsertCommand(any(CommandData.class));
         verify(persistence).saveResult(entity, CommandEventType.REGISTERED, "discord-cmd-1", true, null);
+        verify(ephemeralCommands).apply("GLOBAL", "ping", false, false);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.discord.gateway.listener;
 
+import com.discord.gateway.command.EphemeralCommandRegistry;
+import com.discord.gateway.repository.BotCommandRepository;
 import com.discord.gateway.audit.GuildConfigService;
 import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
@@ -49,7 +51,8 @@ public class DiscordEventListenerTest {
         listener = new DiscordEventListener(
                 eventRouter, inboundEventLogService, attachmentRelayService, 
                 hookRegistry, guildLifecycleService, guildConfigService, 
-                topicRegistry, meterRegistry
+                topicRegistry, meterRegistry,
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class))
         );
     }
 

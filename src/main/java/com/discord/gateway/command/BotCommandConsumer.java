@@ -22,13 +22,16 @@ public class BotCommandConsumer {
     private final BotCommandPersistenceService persistence;
     private final JDA jda;
     private final ObjectMapper objectMapper;
+    private final EphemeralCommandRegistry ephemeralCommands;
 
     public BotCommandConsumer(BotCommandPersistenceService persistence,
                               JDA jda,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              EphemeralCommandRegistry ephemeralCommands) {
         this.persistence = persistence;
         this.jda = jda;
         this.objectMapper = objectMapper;
+        this.ephemeralCommands = ephemeralCommands;
     }
 
     @KafkaListener(topics = "discord.gateway.commands", groupId = "discord-gateway")
@@ -46,6 +49,9 @@ public class BotCommandConsumer {
             if (!"SLASH".equals(payload.prefix())) {
                 return;
             }
+
+            ephemeralCommands.apply(payload.resolvedGuildId(), payload.name(),
+                    payload.isEphemeral(), payload.isDeleted());
 
             syncWithDiscord(command, payload);
 

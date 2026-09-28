@@ -1,5 +1,7 @@
 package com.discord.gateway.integration;
 
+import com.discord.gateway.command.EphemeralCommandRegistry;
+import com.discord.gateway.repository.BotCommandRepository;
 import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
 import com.discord.gateway.executor.InteractionHookRegistry;
@@ -63,7 +65,8 @@ class CircuitBreakerIT {
         eventPublisher = new EventPublisher(kafkaTemplate, redpandaCb, topicRegistry, objectMapper, meterRegistry);
         eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
-                hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry);
+                hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry,
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

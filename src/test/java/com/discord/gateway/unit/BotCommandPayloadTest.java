@@ -2,6 +2,7 @@ package com.discord.gateway.unit;
 
 import com.discord.gateway.model.BotCommandPayload;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 
@@ -49,5 +50,25 @@ class BotCommandPayloadTest {
     void presentGuildId_resolvesAsIs() {
         var p = new BotCommandPayload("123456789", "SLASH", "ping", "Pinga", List.of(), false);
         assertThat(p.resolvedGuildId()).isEqualTo("123456789");
+    }
+
+    @Test
+    void ephemeral_defaultsToFalseWithLegacyConstructor() {
+        var p = new BotCommandPayload("guild-1", "SLASH", "ping", "Pinga", List.of(), false);
+        assertThat(p.isEphemeral()).isFalse();
+    }
+
+    @Test
+    void ephemeral_absentInJson_isFalse() throws Exception {
+        var json = "{\"prefix\":\"SLASH\",\"name\":\"ia\",\"description\":\"IA\",\"is_deleted\":false}";
+        var p = JsonMapper.builder().build().readValue(json, BotCommandPayload.class);
+        assertThat(p.isEphemeral()).isFalse();
+    }
+
+    @Test
+    void ephemeral_trueInJson_isTrue() throws Exception {
+        var json = "{\"prefix\":\"SLASH\",\"name\":\"ia-memoria\",\"description\":\"Memorias\",\"is_deleted\":false,\"ephemeral\":true}";
+        var p = JsonMapper.builder().build().readValue(json, BotCommandPayload.class);
+        assertThat(p.isEphemeral()).isTrue();
     }
 }

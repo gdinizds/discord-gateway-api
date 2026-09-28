@@ -1,5 +1,7 @@
 package com.discord.gateway.unit;
 
+import com.discord.gateway.command.EphemeralCommandRegistry;
+import com.discord.gateway.repository.BotCommandRepository;
 import com.discord.gateway.command.BotCommandConsumer;
 import com.discord.gateway.command.BotCommandPersistenceService;
 import com.discord.gateway.domain.BotCommand;
@@ -33,7 +35,8 @@ class BotCommandSyncServiceTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new BotCommandConsumer(persistence, jda, JsonMapper.builder().build());
+        consumer = new BotCommandConsumer(persistence, jda, JsonMapper.builder().build(),
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)));
     }
 
     @Test
