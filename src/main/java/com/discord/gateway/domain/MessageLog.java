@@ -62,4 +62,9 @@ public class MessageLog {
     }
 
     public Long getId() { return id; }
+    public String getGuildId() { return guildId; }
+    public String getUserId() { return discordUserId; }
+    public String getDiscordMessageId() { return discordMessageId; }
+    public String getDiscordChannelId() { return discordChannelId; }
+    public String getResponseType() { return eventType; }
 }
