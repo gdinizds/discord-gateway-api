@@ -49,6 +49,16 @@ class InteractionHookRegistryTest {
     }
 
     @Test
+    void registeringTheSameTokenAgainReplacesTheHook() {
+        var registry = new InteractionHookRegistry(Duration.ofMillis(50));
+        var newer = mock(InteractionHook.class);
+        registry.register("token-6", hook);
+        registry.register("token-6", newer);
+
+        assertThat(registry.getHook("token-6")).containsSame(newer);
+    }
+
+    @Test
     void removedHookIsNoLongerReturned() {
         var registry = new InteractionHookRegistry(Duration.ofMillis(50));
         registry.register("token-5", hook);
