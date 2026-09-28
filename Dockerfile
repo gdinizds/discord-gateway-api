@@ -43,7 +43,6 @@ ENTRYPOINT ["java", \
   "-XX:+EnableJVMCI", \
   "-XX:+UseJVMCICompiler", \
   "-XX:+UseZGC", \
-  "-XX:+ZGenerational", \
   "-Djdk.virtualThreadScheduler.parallelism=16", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-jar", "app.jar"]
