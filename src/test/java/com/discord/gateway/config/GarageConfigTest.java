@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -154,5 +155,36 @@ public class GarageConfigTest {
         // UnknownHostException mapping (or some SSL exc)
         String url = "https://fake.discordapp.net/test";
         assertThrows(IOException.class, () -> downloader.download(url));
+    }
+
+    @Test
+    void onlyDiscordHostsAreTreatedAsCdn() {
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://cdn.discordapp.com/attachments/1/2/a.png"))).isTrue();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://media.discordapp.net/attachments/1/2/a.png"))).isTrue();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://discordapp.com/a.png"))).isTrue();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://evil.example/?u=cdn.discordapp.com"))).isFalse();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://discordapp.com.evil.example/a.png"))).isFalse();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("https://evildiscordapp.com/a.png"))).isFalse();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("ftp://cdn.discordapp.com/a.png"))).isFalse();
+        assertThat(GarageConfig.isDiscordCdn(URI.create("/bucket/key.png"))).isFalse();
+    }
+
+    @Test
+    void urlMentioningDiscordInPathIsResolvedAgainstS3() throws Exception {
+        AttachmentDownloader downloader = garageConfig.attachmentDownloader(s3Client);
+        ResponseInputStream<GetObjectResponse> mockResponse = mock(ResponseInputStream.class);
+        when(s3Client.getObject(any(Consumer.class))).thenReturn(mockResponse);
+
+        InputStream result = downloader.download("http://garage.internal/discord-attachments/cdn.discordapp.com.png");
+
+        assertThat(result).isSameAs(mockResponse);
+        ArgumentCaptor<Consumer<GetObjectRequest.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(s3Client).getObject(captor.capture());
+        GetObjectRequest.Builder builder = mock(GetObjectRequest.Builder.class);
+        when(builder.bucket(any())).thenReturn(builder);
+        when(builder.key(any())).thenReturn(builder);
+        captor.getValue().accept(builder);
+        verify(builder).bucket("discord-attachments");
+        verify(builder).key("cdn.discordapp.com.png");
     }
 }

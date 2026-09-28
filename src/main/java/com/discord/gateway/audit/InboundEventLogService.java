@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -16,30 +17,60 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @Service
 public class InboundEventLogService {
 
     private static final Logger log = LoggerFactory.getLogger(InboundEventLogService.class);
+    static final int DEFAULT_MAX_IN_FLIGHT = 512;
 
     private final MessageLogRepository messageLogRepository;
     private final CircuitBreaker postgresqlCb;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
     private final ExecutorService auditExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final Semaphore inFlight;
 
+    @Autowired
     public InboundEventLogService(MessageLogRepository messageLogRepository,
                                   CircuitBreaker postgresqlCircuitBreaker,
                                   ObjectMapper objectMapper,
                                   MeterRegistry meterRegistry) {
+        this(messageLogRepository, postgresqlCircuitBreaker, objectMapper, meterRegistry, DEFAULT_MAX_IN_FLIGHT);
+    }
+
+    InboundEventLogService(MessageLogRepository messageLogRepository,
+                           CircuitBreaker postgresqlCircuitBreaker,
+                           ObjectMapper objectMapper,
+                           MeterRegistry meterRegistry,
+                           int maxInFlight) {
         this.messageLogRepository = messageLogRepository;
         this.postgresqlCb = postgresqlCircuitBreaker;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.inFlight = new Semaphore(maxInFlight);
     }
 
     public void log(DiscordEventPayload payload) {
-        auditExecutor.submit(() -> doLog(payload));
+        if (!inFlight.tryAcquire()) {
+            meterRegistry.counter("discord.gateway.audit.dropped", "direction", "INBOUND").increment();
+            log.warn("Audit backlog full, inbound log dropped [eventType={}, correlationId={}]",
+                    payload.eventType(), payload.correlationId());
+            return;
+        }
+        try {
+            auditExecutor.submit(() -> {
+                try {
+                    doLog(payload);
+                } finally {
+                    inFlight.release();
+                }
+            });
+        } catch (RuntimeException e) {
+            inFlight.release();
+            throw e;
+        }
     }
 
     private void doLog(DiscordEventPayload payload) {

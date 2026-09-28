@@ -80,7 +80,7 @@ public class EventRouter {
         }
     }
 
-    private boolean isChannelAllowed(String guildId, String channelId) {
+    public boolean isChannelAllowed(String guildId, String channelId) {
         if (guildId == null || channelId == null) return true;
         try {
             long now = System.currentTimeMillis();

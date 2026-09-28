@@ -57,17 +57,18 @@ public class AttachmentRelayService {
         String key = guildId + "/" + messageId + "/" + filename;
         try {
             garageCb.executeCallable(() -> {
-                byte[] bytes;
                 try (var stream = downloader.download(discordUrl)) {
-                    bytes = stream.readAllBytes();
+                    if (sizeBytes > 0) {
+                        s3Client.putObject(
+                                PutObjectRequest.builder().bucket(bucket).key(key).contentLength(sizeBytes).build(),
+                                RequestBody.fromInputStream(stream, sizeBytes));
+                    } else {
+                        byte[] bytes = stream.readAllBytes();
+                        s3Client.putObject(
+                                PutObjectRequest.builder().bucket(bucket).key(key).contentLength((long) bytes.length).build(),
+                                RequestBody.fromBytes(bytes));
+                    }
                 }
-                s3Client.putObject(
-                        PutObjectRequest.builder()
-                                .bucket(bucket)
-                                .key(key)
-                                .contentLength((long) bytes.length)
-                                .build(),
-                        RequestBody.fromBytes(bytes));
                 return null;
             });
             meterRegistry.counter("discord.gateway.attachments.relayed").increment();

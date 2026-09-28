@@ -7,6 +7,7 @@ import com.discord.gateway.relay.AttachmentDownloader;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
@@ -109,7 +110,7 @@ public class DiscordResponseExecutor {
     }
 
     private DispatchResult executeViaChannel(OutboundResponsePayload payload) {
-        var channel = jda.getTextChannelById(payload.channelId());
+        var channel = jda.getChannelById(GuildMessageChannel.class, payload.channelId());
         if (channel == null) {
             log.warn("Channel not found [channelId={}]", payload.channelId());
             return DispatchResult.failure("channel not found: " + payload.channelId());
@@ -122,7 +123,7 @@ public class DiscordResponseExecutor {
     }
 
     private DispatchResult sendViaChannel(
-            net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel,
+            GuildMessageChannel channel,
             OutboundResponsePayload payload) {
         String content = payload.content() != null ? payload.content() : "";
         var action = channel.sendMessage(content);
@@ -154,7 +155,7 @@ public class DiscordResponseExecutor {
     }
 
     private DispatchResult editViaChannel(
-            net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel,
+            GuildMessageChannel channel,
             OutboundResponsePayload payload) {
         String content = payload.content() != null ? payload.content() : "";
         String targetId = botMessageRegistry.getBotMessageId(payload.messageId())

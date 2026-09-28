@@ -79,9 +79,9 @@ class AttachmentRelayIT {
 
     @Test
     void relayUploadsBytesToS3AndReturnsInternalUrl() {
-        String internalUrl = relayService.relay(
-                "https://cdn.discordapp.com/attachments/123/456/test.txt",
-                "test.txt", 100L, "guild-1", "msg-1", 0L);
+        String source = "https://cdn.discordapp.com/attachments/123/456/test.txt";
+        long size = ("content-of:" + source).getBytes().length;
+        String internalUrl = relayService.relay(source, "test.txt", size, "guild-1", "msg-1", 0L);
 
         assertThat(internalUrl).contains("guild-1/msg-1/test.txt");
         assertThat(internalUrl).contains(BUCKET);

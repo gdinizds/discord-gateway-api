@@ -12,7 +12,6 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 
@@ -28,7 +27,6 @@ public class StartupReconciliationService extends ListenerAdapter {
     }
 
     @Override
-    @Transactional
     public void onReady(ReadyEvent event) {
         reconcileGuilds(event.getJDA());
         registerConfigCommand(event.getJDA());

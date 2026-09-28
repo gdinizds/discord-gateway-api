@@ -6,7 +6,10 @@ import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.model.OutboundResponsePayload;
 import com.discord.gateway.relay.AttachmentDownloader;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +21,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +53,7 @@ class DiscordResponseExecutorTest {
     @BeforeEach
     void setUp() {
         executor = new DiscordResponseExecutor(hookRegistry, botMessageRegistry, attachmentDownloader, jda);
-        when(hookRegistry.getHook(anyString())).thenReturn(Optional.of(hook));
+        lenient().when(hookRegistry.getHook(anyString())).thenReturn(Optional.of(hook));
     }
 
     @Test
@@ -129,5 +135,23 @@ class DiscordResponseExecutorTest {
 
         assertThat(result.success()).isFalse();
         assertThat(result.discordError()).contains("hook");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void channelReplyWorksInThreads() {
+        var thread = mock(ThreadChannel.class);
+        var createAction = mock(MessageCreateAction.class, RETURNS_SELF);
+        when(jda.getChannelById(GuildMessageChannel.class, "thread-1")).thenReturn(thread);
+        when(thread.sendMessage(anyString())).thenReturn(createAction);
+
+        var payload = new OutboundResponsePayload(
+                "REPLY", null, "origin-1", "thread-1", "Oi", null, null, null, null);
+        var result = executor.execute(payload);
+
+        assertThat(result.success()).isTrue();
+        verify(thread).sendMessage("Oi");
+        verify(createAction).setMessageReference("origin-1");
+        verify(createAction).queue(any(), any());
     }
 }

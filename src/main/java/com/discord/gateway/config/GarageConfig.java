@@ -15,9 +15,15 @@ import java.net.URI;
 import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
 
 @Configuration
 public class GarageConfig {
+
+    private static final List<String> DISCORD_CDN_DOMAINS = List.of("discordapp.com", "discordapp.net");
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 60_000;
 
     @Value("${gateway.garage.endpoint}")
     private String endpoint;
@@ -46,15 +52,17 @@ public class GarageConfig {
     public AttachmentDownloader attachmentDownloader(S3Client s3Client) {
         return url -> {
             try {
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    if (url.contains("discordapp.com") || url.contains("discordapp.net")) {
-                        URLConnection conn = URI.create(url).toURL().openConnection();
-                        conn.setRequestProperty("User-Agent", "DiscordBot (Gateway, 1.0)");
-                        return conn.getInputStream();
-                    }
+                URI uri = URI.create(url);
+                if (isDiscordCdn(uri)) {
+                    URLConnection conn = uri.toURL().openConnection();
+                    conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    conn.setReadTimeout(READ_TIMEOUT_MS);
+                    conn.setRequestProperty("User-Agent", "DiscordBot (Gateway, 1.0)");
+                    return conn.getInputStream();
                 }
-                
-                String path = URI.create(url).getRawPath();
+
+                String path = uri.getRawPath();
+                if (path == null) throw new IOException("Cannot parse bucket/key from URL: " + url);
                 if (path.startsWith("/")) path = path.substring(1);
                 int slash = path.indexOf('/');
                 if (slash < 0) throw new IOException("Cannot parse bucket/key from URL: " + url);
@@ -67,5 +75,14 @@ public class GarageConfig {
                 throw new IOException("Failed to download attachment: " + url, e);
             }
         };
+    }
+
+    static boolean isDiscordCdn(URI uri) {
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        if (host == null || scheme == null) return false;
+        if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) return false;
+        String h = host.toLowerCase(Locale.ROOT);
+        return DISCORD_CDN_DOMAINS.stream().anyMatch(d -> h.equals(d) || h.endsWith("." + d));
     }
 }
