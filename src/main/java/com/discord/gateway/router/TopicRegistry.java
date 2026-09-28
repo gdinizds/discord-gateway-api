@@ -18,6 +18,10 @@ public class TopicRegistry {
         this.topics = topics;
     }
 
+    public Map<String, TopicMapping> getTopics() {
+        return Map.copyOf(topics);
+    }
+
     public TopicMapping get(String eventType) {
         return topics.get(eventType);
     }

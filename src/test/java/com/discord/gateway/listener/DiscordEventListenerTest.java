@@ -59,7 +59,8 @@ public class DiscordEventListenerTest {
                 eventRouter, inboundEventLogService, attachmentRelayService, 
                 hookRegistry, guildLifecycleService, guildConfigService, 
                 topicRegistry, meterRegistry,
-                new EphemeralCommandRegistry(mock(BotCommandRepository.class))
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
+                EventSequencer.direct()
         );
     }
 

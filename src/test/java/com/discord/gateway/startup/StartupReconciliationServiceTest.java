@@ -29,7 +29,7 @@ public class StartupReconciliationServiceTest {
 
     @BeforeEach
     void setUp() {
-        startupReconciliationService = new StartupReconciliationService(guildLifecycleService);
+        startupReconciliationService = new StartupReconciliationService(guildLifecycleService, Runnable::run);
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.repository.GuildConfigRepository;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,12 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 public class AttachmentRelayService {
@@ -26,6 +33,7 @@ public class AttachmentRelayService {
     private final long defaultMaxSizeBytes;
     private final String bucket;
     private final String endpoint;
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     public AttachmentRelayService(AttachmentDownloader attachmentDownloader,
                                   S3Client s3Client,
@@ -43,6 +51,34 @@ public class AttachmentRelayService {
         this.defaultMaxSizeBytes = defaultMaxSizeBytes;
         this.bucket = bucket;
         this.endpoint = endpoint;
+    }
+
+    public record Source(String url, String fileName, long sizeBytes) {}
+
+    public List<String> relayAll(List<Source> sources, String guildId, String messageId, long tierMaxSizeBytes) {
+        if (sources.isEmpty()) return List.of();
+        if (sources.size() == 1) {
+            var only = sources.getFirst();
+            return List.of(relay(only.url(), only.fileName(), only.sizeBytes(), guildId, messageId, tierMaxSizeBytes));
+        }
+        List<CompletableFuture<String>> futures = sources.stream()
+                .map(src -> CompletableFuture.supplyAsync(() ->
+                        relay(src.url(), src.fileName(), src.sizeBytes(), guildId, messageId, tierMaxSizeBytes), executor))
+                .toList();
+        try {
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+        } catch (CompletionException e) {
+            futures.forEach(f -> f.cancel(true));
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof AttachmentRelayException relayException) throw relayException;
+            throw new AttachmentRelayException("Failed to relay attachments", cause);
+        }
+        return futures.stream().map(CompletableFuture::join).toList();
+    }
+
+    @PreDestroy
+    public void close() {
+        executor.close();
     }
 
     public String relay(String discordUrl, String filename, long sizeBytes,

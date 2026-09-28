@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +62,7 @@ public class DiscordEventListener extends ListenerAdapter {
     private final TopicRegistry topicRegistry;
     private final MeterRegistry meterRegistry;
     private final EphemeralCommandRegistry ephemeralCommands;
+    private final EventSequencer sequencer;
 
     public DiscordEventListener(EventRouter eventRouter,
                                 InboundEventLogService inboundEventLogService,
@@ -72,7 +72,8 @@ public class DiscordEventListener extends ListenerAdapter {
                                 GuildConfigService guildConfigService,
                                 TopicRegistry topicRegistry,
                                 MeterRegistry meterRegistry,
-                                EphemeralCommandRegistry ephemeralCommands) {
+                                EphemeralCommandRegistry ephemeralCommands,
+                                EventSequencer sequencer) {
         this.eventRouter = eventRouter;
         this.inboundEventLogService = inboundEventLogService;
         this.attachmentRelayService = attachmentRelayService;
@@ -82,12 +83,16 @@ public class DiscordEventListener extends ListenerAdapter {
         this.topicRegistry = topicRegistry;
         this.meterRegistry = meterRegistry;
         this.ephemeralCommands = ephemeralCommands;
+        this.sequencer = sequencer;
     }
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!event.isFromGuild() || event.getAuthor().isBot()) return;
+        sequencer.submit(event.getChannel().getId(), () -> handleMessageReceived(event));
+    }
 
+    private void handleMessageReceived(MessageReceivedEvent event) {
         String content = event.getMessage().getContentRaw();
         if (content.startsWith(".") && content.length() > 1 && !content.startsWith(". ")) {
             handleDotCommand(event, content);
@@ -145,7 +150,10 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onMessageUpdate(MessageUpdateEvent event) {
         if (!event.isFromGuild() || event.getAuthor().isBot()) return;
+        sequencer.submit(event.getChannel().getId(), () -> handleMessageUpdate(event));
+    }
 
+    private void handleMessageUpdate(MessageUpdateEvent event) {
         String guildId = event.getGuild().getId();
         String messageId = event.getMessage().getId();
 
@@ -176,7 +184,10 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getGuild() == null) return;
+        sequencer.submit(null, () -> handleSlashCommand(event));
+    }
 
+    private void handleSlashCommand(SlashCommandInteractionEvent event) {
         if ("config".equals(event.getName())) {
             handleConfigCommand(event);
             return;
@@ -207,7 +218,10 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
         if (event.getGuild() == null) return;
+        sequencer.submit(null, () -> handleButton(event));
+    }
 
+    private void handleButton(ButtonInteractionEvent event) {
         String guildId = event.getGuild().getId();
         String messageId = event.getMessage().getId();
         String correlationId = newCorrelationId();
@@ -230,7 +244,10 @@ public class DiscordEventListener extends ListenerAdapter {
     @Override
     public void onModalInteraction(ModalInteractionEvent event) {
         if (event.getGuild() == null) return;
+        sequencer.submit(null, () -> handleModal(event));
+    }
 
+    private void handleModal(ModalInteractionEvent event) {
         String guildId = event.getGuild().getId();
         String correlationId = newCorrelationId();
 
@@ -281,22 +298,24 @@ public class DiscordEventListener extends ListenerAdapter {
 
     @Override
     public void onGuildJoin(GuildJoinEvent event) {
-        guildLifecycleService.onJoin(event.getGuild());
+        sequencer.submit(event.getGuild().getId(), () -> guildLifecycleService.onJoin(event.getGuild()));
     }
 
     @Override
     public void onGuildLeave(GuildLeaveEvent event) {
-        guildLifecycleService.onLeave(event.getGuild().getId(), event.getGuild().getName());
+        String guildId = event.getGuild().getId();
+        String guildName = event.getGuild().getName();
+        sequencer.submit(guildId, () -> guildLifecycleService.onLeave(guildId, guildName));
     }
 
     @Override
     public void onGuildMemberJoin(GuildMemberJoinEvent event) {
-        publishMemberEvent(event.getGuild(), event.getUser(), "JOIN");
+        sequencer.submit(event.getGuild().getId(), () -> publishMemberEvent(event.getGuild(), event.getUser(), "JOIN"));
     }
 
     @Override
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {
-        publishMemberEvent(event.getGuild(), event.getUser(), "LEAVE");
+        sequencer.submit(event.getGuild().getId(), () -> publishMemberEvent(event.getGuild(), event.getUser(), "LEAVE"));
     }
 
     private void publishMemberEvent(Guild guild, User user, String action) {
@@ -338,6 +357,10 @@ public class DiscordEventListener extends ListenerAdapter {
 
     @Override
     public void onGuildUpdateName(GuildUpdateNameEvent event) {
+        sequencer.submit(event.getGuild().getId(), () -> handleGuildNameUpdate(event));
+    }
+
+    private void handleGuildNameUpdate(GuildUpdateNameEvent event) {
         var raw = new HashMap<String, Object>();
         raw.put("field", "name");
         raw.put("oldValue", event.getOldName());
@@ -357,6 +380,10 @@ public class DiscordEventListener extends ListenerAdapter {
 
     @Override
     public void onGuildUpdateBoostTier(GuildUpdateBoostTierEvent event) {
+        sequencer.submit(event.getGuild().getId(), () -> handleBoostTierUpdate(event));
+    }
+
+    private void handleBoostTierUpdate(GuildUpdateBoostTierEvent event) {
         var raw = new HashMap<String, Object>();
         raw.put("field", "boostTier");
         raw.put("oldValue", event.getOldBoostTier().getKey());
@@ -432,13 +459,11 @@ public class DiscordEventListener extends ListenerAdapter {
             return List.of();
         }
         long tierMaxSizeBytes = guild.getBoostTier().getMaxFileSize();
-        List<String> urls = new ArrayList<>(attachments.size());
+        var sources = attachments.stream()
+                .map(att -> new AttachmentRelayService.Source(att.getUrl(), att.getFileName(), att.getSize()))
+                .toList();
         try {
-            for (var att : attachments) {
-                urls.add(attachmentRelayService.relay(
-                        att.getUrl(), att.getFileName(), att.getSize(), guildId, messageId, tierMaxSizeBytes));
-            }
-            return urls;
+            return attachmentRelayService.relayAll(sources, guildId, messageId, tierMaxSizeBytes);
         } catch (AttachmentRelayException e) {
             log.warn("Attachment relay failed — event discarded [eventType={}, messageId={}]", eventType, messageId, e);
             meterRegistry.counter("discord.gateway.events.discarded",

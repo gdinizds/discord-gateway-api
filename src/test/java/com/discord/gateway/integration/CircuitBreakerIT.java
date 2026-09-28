@@ -6,6 +6,7 @@ import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.listener.DiscordEventListener;
+import com.discord.gateway.listener.EventSequencer;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.model.GuildInfo;
 import com.discord.gateway.model.UserInfo;
@@ -69,7 +70,8 @@ class CircuitBreakerIT {
         eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
                 hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry,
-                new EphemeralCommandRegistry(mock(BotCommandRepository.class)));
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
+                EventSequencer.direct());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

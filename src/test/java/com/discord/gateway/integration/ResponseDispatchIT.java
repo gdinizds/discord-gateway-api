@@ -23,6 +23,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,9 +85,11 @@ class ResponseDispatchIT {
         var msgAction = mock(WebhookMessageCreateAction.class);
         when(mockHook.sendMessage(anyString())).thenReturn(msgAction);
         when(msgAction.setEphemeral(anyBoolean())).thenReturn(msgAction);
+        when(msgAction.submit()).thenReturn(CompletableFuture.completedFuture(null));
 
         var editAction = mock(WebhookMessageEditAction.class);
         when(mockHook.editOriginal(anyString())).thenReturn(editAction);
+        when(editAction.submit()).thenReturn(CompletableFuture.completedFuture(null));
     }
 
     @Test

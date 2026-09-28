@@ -59,7 +59,7 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
             hints.reflection().registerType(type,
                     MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
                     MemberCategory.INVOKE_DECLARED_METHODS,
-                    MemberCategory.DECLARED_FIELDS);
+                    MemberCategory.ACCESS_DECLARED_FIELDS);
         }
 
         hints.resources().registerPattern("db/migration/*/*.sql");

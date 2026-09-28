@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class InboundEventLogServiceTest {
@@ -67,5 +68,38 @@ class InboundEventLogServiceTest {
         return new DiscordEventPayload("MESSAGE_CREATED", UUID.randomUUID().toString(), "normal",
                 GuildInfo.builder().id("guild-1").build(), "channel-1", null, null, "msg-1", 1,
                 List.of(), Map.of("content", "hi"));
+    }
+
+    @Test
+    void editsResolveCorrelationFromMemoryBeforeAuditIsPersisted() {
+        service = new InboundEventLogService(repository, CircuitBreaker.ofDefaults("audit-cache"),
+                JsonMapper.builder().build(), meterRegistry, 0);
+        String correlationId = UUID.randomUUID().toString();
+
+        service.log(new DiscordEventPayload("MESSAGE_CREATED", correlationId, "normal",
+                GuildInfo.builder().id("guild-1").build(), "channel-1", null, null, "msg-42", 1,
+                List.of(), Map.of()));
+        service.log(new DiscordEventPayload("MESSAGE_UPDATED", correlationId, "low",
+                GuildInfo.builder().id("guild-1").build(), "channel-1", null, null, "msg-42", 2,
+                List.of(), Map.of()));
+
+        var found = service.findCorrelation("msg-42");
+
+        assertThat(found).isPresent();
+        assertThat(found.get().correlationId()).hasToString(correlationId);
+        assertThat(found.get().maxVersion()).isEqualTo(2);
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void interactionsAreNotCached() {
+        service = new InboundEventLogService(repository, CircuitBreaker.ofDefaults("audit-cache-2"),
+                JsonMapper.builder().build(), meterRegistry, 0);
+
+        service.log(new DiscordEventPayload("INTERACTION_BUTTON", UUID.randomUUID().toString(), "normal",
+                GuildInfo.builder().id("guild-1").build(), "channel-1", null, "tok", "bot-msg", 1,
+                List.of(), Map.of()));
+
+        assertThat(service.cachedCorrelations()).isZero();
     }
 }

@@ -148,4 +148,46 @@ class AttachmentSizeLimitTest {
         verify(s3Client).putObject(request.capture(), any(RequestBody.class));
         assertThat(request.getValue().contentLength()).isEqualTo(5L);
     }
+
+    @Test
+    void multipleAttachmentsAreRelayedConcurrentlyInOrder() {
+        var started = new java.util.concurrent.CountDownLatch(3);
+        var parallel = new AttachmentRelayService(
+                url -> {
+                    started.countDown();
+                    try {
+                        if (!started.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                            throw new java.io.IOException("downloads did not run concurrently");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return new ByteArrayInputStream("bytes".getBytes());
+                },
+                s3Client, CircuitBreaker.ofDefaults("garage-parallel"), guildConfigRepository,
+                new SimpleMeterRegistry(), DEFAULT_MAX, "discord-attachments", "http://garage");
+
+        var urls = parallel.relayAll(java.util.List.of(
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/1", "a.png", 5),
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/2", "b.png", 5),
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/3", "c.png", 5)),
+                "guild-1", "msg-9", 0L);
+
+        assertThat(started.getCount()).isZero();
+        assertThat(urls).containsExactly(
+                "http://garage/discord-attachments/guild-1/msg-9/a.png",
+                "http://garage/discord-attachments/guild-1/msg-9/b.png",
+                "http://garage/discord-attachments/guild-1/msg-9/c.png");
+        parallel.close();
+    }
+
+    @Test
+    void oneOversizedAttachmentFailsTheWholeBatch() {
+        assertThatThrownBy(() -> relayService.relayAll(java.util.List.of(
+                        new AttachmentRelayService.Source("https://cdn.discordapp.com/1", "ok.png", 5),
+                        new AttachmentRelayService.Source("https://cdn.discordapp.com/2", "huge.bin", DEFAULT_MAX + 1)),
+                "guild-1", "msg-10", 0L))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("exceeds");
+    }
 }
