@@ -10,6 +10,7 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Configuration
@@ -21,14 +22,16 @@ public class KafkaTopicsConfig {
     public KafkaAdmin.NewTopics gatewayTopics(TopicRegistry topicRegistry,
                                               @Value("${gateway.kafka.topic-partitions:0}") int partitions,
                                               @Value("${gateway.kafka.topic-replicas:0}") int replicas) {
+        return new KafkaAdmin.NewTopics(topics(topicRegistry, partitions, replicas).toArray(NewTopic[]::new));
+    }
+
+    static List<NewTopic> topics(TopicRegistry topicRegistry, int partitions, int replicas) {
         Set<String> names = new LinkedHashSet<>();
         topicRegistry.getTopics().values().forEach(mapping -> names.add(mapping.topic()));
         names.add(COMMANDS_TOPIC);
         names.add(ResponseDispatcher.RESPONSES_TOPIC);
         names.add(ResponseDispatcher.DLT_TOPIC);
-        return new KafkaAdmin.NewTopics(names.stream()
-                .map(name -> topic(name, partitions, replicas))
-                .toArray(NewTopic[]::new));
+        return names.stream().map(name -> topic(name, partitions, replicas)).toList();
     }
 
     private static NewTopic topic(String name, int partitions, int replicas) {

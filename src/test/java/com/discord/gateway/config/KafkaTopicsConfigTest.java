@@ -15,7 +15,7 @@ class KafkaTopicsConfigTest {
 
     @Test
     void declaresEveryRoutedTopicPlusGatewayTopics() {
-        var topics = new KafkaTopicsConfig().gatewayTopics(registry, 0, 0).getNewTopics();
+        var topics = KafkaTopicsConfig.topics(registry, 0, 0);
 
         assertThat(topics).extracting(NewTopic::name).containsExactlyInAnyOrder(
                 "discord.events.message.created",
@@ -27,7 +27,7 @@ class KafkaTopicsConfigTest {
 
     @Test
     void brokerDefaultsAreKeptWhenNotConfigured() {
-        var topics = new KafkaTopicsConfig().gatewayTopics(registry, 0, 0).getNewTopics();
+        var topics = KafkaTopicsConfig.topics(registry, 0, 0);
 
         assertThat(topics).allSatisfy(t -> {
             assertThat(t.numPartitions()).isEqualTo(-1);
@@ -37,7 +37,7 @@ class KafkaTopicsConfigTest {
 
     @Test
     void configuredPartitionsAndReplicasAreApplied() {
-        var topics = new KafkaTopicsConfig().gatewayTopics(registry, 6, 3).getNewTopics();
+        var topics = KafkaTopicsConfig.topics(registry, 6, 3);
 
         assertThat(topics).allSatisfy(t -> {
             assertThat(t.numPartitions()).isEqualTo(6);
