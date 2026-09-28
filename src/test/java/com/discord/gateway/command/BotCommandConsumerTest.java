@@ -2,26 +2,23 @@ package com.discord.gateway.command;
 
 import com.discord.gateway.domain.BotCommand;
 import com.discord.gateway.domain.CommandEventType;
+import com.discord.gateway.domain.CommandPrefix;
 import com.discord.gateway.model.BotCommandPayload;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.requests.restaction.CommandCreateAction;
-import net.dv8tion.jda.api.requests.restaction.CommandEditAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.Acknowledgment;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -43,7 +40,7 @@ public class BotCommandConsumerTest {
     void shouldAcknowledgeAndDiscardInvalidPayload() throws Exception {
         Acknowledgment ack = mock(Acknowledgment.class);
         BotCommandPayload payload = new BotCommandPayload(
-                null, null, null, null, null, null, false, List.of()
+                null, null, null, null, null, false
         );
 
         when(objectMapper.readValue("{}", BotCommandPayload.class)).thenReturn(payload);
@@ -59,10 +56,9 @@ public class BotCommandConsumerTest {
     void shouldRegisterGlobalCommand() throws Exception {
         Acknowledgment ack = mock(Acknowledgment.class);
         BotCommandPayload payload = new BotCommandPayload(
-                "app-1", "GLOBAL", "ping", "pong", "SLASH", "1", false, List.of()
+                null, "SLASH", "ping", "pong", List.of(), false
         );
-        BotCommand entity = new BotCommand();
-        entity.setVersion(1);
+        BotCommand entity = new BotCommand(null, CommandPrefix.SLASH, "ping", "pong", "[]");
 
         when(objectMapper.readValue("msg", BotCommandPayload.class)).thenReturn(payload);
         when(persistence.upsert(payload)).thenReturn(entity);
@@ -86,10 +82,9 @@ public class BotCommandConsumerTest {
     void shouldDeleteGuildCommand() throws Exception {
         Acknowledgment ack = mock(Acknowledgment.class);
         BotCommandPayload payload = new BotCommandPayload(
-                "app-2", "guild-1", "test", "test", "SLASH", "1", true, List.of()
+                "guild-1", "SLASH", "test", "test", List.of(), true
         );
-        BotCommand entity = new BotCommand();
-        entity.setVersion(1);
+        BotCommand entity = new BotCommand("guild-1", CommandPrefix.SLASH, "test", "test", "[]");
         entity.setDiscordCmdId("cmd-123");
 
         when(objectMapper.readValue("msg", BotCommandPayload.class)).thenReturn(payload);

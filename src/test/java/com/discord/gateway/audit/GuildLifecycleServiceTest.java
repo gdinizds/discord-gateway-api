@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.Permission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
+import java.util.EnumSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,7 +53,7 @@ public class GuildLifecycleServiceTest {
         when(guild.getName()).thenReturn("Guild One");
         when(guild.getMemberCount()).thenReturn(50);
         when(guild.getSelfMember()).thenReturn(selfMember);
-        // Default returns empty permissions list from mock
+        when(selfMember.getPermissions()).thenReturn(EnumSet.noneOf(Permission.class));
         
         when(guildRegistryRepository.findById("g1")).thenReturn(Optional.empty());
         when(objectMapper.writeValueAsString(any())).thenReturn("{\\\"test\\\":true}");
@@ -79,6 +81,7 @@ public class GuildLifecycleServiceTest {
         when(guild.getName()).thenReturn("Guild Two");
         when(guild.getMemberCount()).thenReturn(100);
         when(guild.getSelfMember()).thenReturn(selfMember);
+        when(selfMember.getPermissions()).thenReturn(EnumSet.noneOf(Permission.class));
 
         GuildRegistry existing = mock(GuildRegistry.class);
         when(guildRegistryRepository.findById("g2")).thenReturn(Optional.of(existing));

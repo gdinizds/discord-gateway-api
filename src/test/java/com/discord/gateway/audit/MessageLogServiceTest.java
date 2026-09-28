@@ -40,7 +40,7 @@ public class MessageLogServiceTest {
     @Test
     void shouldLogOutboundMessageAsync() throws Exception {
         OutboundResponsePayload payload = new OutboundResponsePayload(
-                "cor-1", "interaction", "int-1", "tok-1", Map.of()
+                "interaction", "tok-1", "msg-123", "chan-123", "content", null, null, true, "00000000-0000-0000-0000-000000000000"
         );
         DispatchResult result = new DispatchResult(true, "msg-123", "chan-123", null);
         
@@ -65,7 +65,7 @@ public class MessageLogServiceTest {
     @Test
     void shouldNotThrowExceptionIfLoggingFails() throws Exception {
         OutboundResponsePayload payload = new OutboundResponsePayload(
-                "cor-1", "interaction", "int-1", "tok-1", Map.of()
+                "interaction", "tok-1", "msg-123", "chan-123", "content", null, null, true, "00000000-0000-0000-0000-000000000000"
         );
         DispatchResult result = new DispatchResult(false, null, null, "error");
 
