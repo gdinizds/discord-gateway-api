@@ -8,6 +8,7 @@ import com.discord.gateway.audit.InboundEventLogService;
 import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.listener.DiscordEventListener;
+import com.discord.gateway.listener.EventSequencer;
 import com.discord.gateway.publisher.EventPublisher;
 import com.discord.gateway.relay.AttachmentRelayService;
 import com.discord.gateway.repository.GuildConfigRepository;
@@ -55,7 +56,8 @@ class ConfigCommandHandlerTest {
         listener = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
                 new InteractionHookRegistry(), guildLifecycle, guildConfigService,
                 topicRegistry, meterRegistry,
-                new EphemeralCommandRegistry(mock(BotCommandRepository.class)));
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
+                EventSequencer.direct());
 
         lenient().when(event.getName()).thenReturn("config");
         lenient().when(event.getGuild()).thenReturn(guild);

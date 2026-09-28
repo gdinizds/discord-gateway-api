@@ -97,39 +97,41 @@ gateway:
       topic: discord.events.message.command
       priority: normal
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,prometheus,info
-  health:
-    show-details: always
-  prometheus:
-    metrics:
-      export:
-        enabled: true
-
-resilience4j:
-  circuitbreaker:
+  circuit-breakers:
     instances:
       redpanda:
-        sliding-window-type: COUNT_BASED
         sliding-window-size: 50
         minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 5
       postgresql:
-        sliding-window-type: COUNT_BASED
         sliding-window-size: 50
         minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 5
       garage:
-        sliding-window-type: COUNT_BASED
         sliding-window-size: 50
         minimum-number-of-calls: 20
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,discord-websocket
+  prometheus:
+    metrics:
+      export:
+        enabled: true

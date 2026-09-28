@@ -6,35 +6,55 @@ import com.discord.gateway.model.OutboundResponsePayload;
 import com.discord.gateway.relay.AttachmentDownloader;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.requests.RestAction;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 public class DiscordResponseExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(DiscordResponseExecutor.class);
+    static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 
     private final InteractionHookRegistry hookRegistry;
     private final BotMessageRegistry botMessageRegistry;
     private final AttachmentDownloader attachmentDownloader;
     private final JDA jda;
+    private final Duration timeout;
 
+    @Autowired
     public DiscordResponseExecutor(InteractionHookRegistry hookRegistry,
                                    BotMessageRegistry botMessageRegistry,
                                    AttachmentDownloader attachmentDownloader,
                                    JDA jda) {
+        this(hookRegistry, botMessageRegistry, attachmentDownloader, jda, DEFAULT_TIMEOUT);
+    }
+
+    public DiscordResponseExecutor(InteractionHookRegistry hookRegistry,
+                                   BotMessageRegistry botMessageRegistry,
+                                   AttachmentDownloader attachmentDownloader,
+                                   JDA jda,
+                                   Duration timeout) {
         this.hookRegistry = hookRegistry;
         this.botMessageRegistry = botMessageRegistry;
         this.attachmentDownloader = attachmentDownloader;
         this.jda = jda;
+        this.timeout = timeout;
     }
 
     public DispatchResult execute(OutboundResponsePayload payload) {
@@ -68,48 +88,34 @@ public class DiscordResponseExecutor {
     }
 
     private DispatchResult sendViaHook(InteractionHook hook, OutboundResponsePayload payload, boolean ephemeral) {
-        String content = payload.content() != null ? payload.content() : "";
-        var action = hook.sendMessage(content);
+        var action = hook.sendMessage(text(payload));
         if (ephemeral) action.setEphemeral(true);
 
         var embeds = buildEmbeds(payload.embeds());
         if (!embeds.isEmpty()) action.addEmbeds(embeds);
 
-        var files = downloadFiles(payload.attachments());
+        var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.addFiles(files);
 
-        action.queue(
-                msg -> log.debug("Hook message sent [messageId={}]", msg.getId()),
-                err -> {
-                    log.error("Failed to send hook message", err);
-                    hook.sendMessage("Ocorreu uma falha ao enviar a resposta.")
-                            .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e));
-                });
-        return DispatchResult.success(null, null);
+        return await(action, () -> hook.sendMessage("Ocorreu uma falha ao enviar a resposta.")
+                .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e)));
     }
 
     private DispatchResult editViaHook(InteractionHook hook, OutboundResponsePayload payload) {
-        String content = payload.content() != null ? payload.content() : "";
-        var action = hook.editOriginal(content);
+        var action = hook.editOriginal(text(payload));
 
         var embeds = buildEmbeds(payload.embeds());
         if (!embeds.isEmpty()) action.setEmbeds(embeds);
 
-        var files = downloadFiles(payload.attachments());
+        var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.setFiles(files);
 
-        action.queue(
-                msg -> log.debug("Hook message edited [messageId={}]", msg.getId()),
-                err -> {
-                    log.error("Failed to edit hook message", err);
-                    hook.sendMessage("Ocorreu uma falha ao editar a resposta.")
-                            .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e));
-                });
-        return DispatchResult.success(null, null);
+        return await(action, () -> hook.sendMessage("Ocorreu uma falha ao editar a resposta.")
+                .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e)));
     }
 
     private DispatchResult executeViaChannel(OutboundResponsePayload payload) {
-        var channel = jda.getTextChannelById(payload.channelId());
+        var channel = jda.getChannelById(GuildMessageChannel.class, payload.channelId());
         if (channel == null) {
             log.warn("Channel not found [channelId={}]", payload.channelId());
             return DispatchResult.failure("channel not found: " + payload.channelId());
@@ -121,12 +127,8 @@ public class DiscordResponseExecutor {
         };
     }
 
-    private DispatchResult sendViaChannel(
-            net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel,
-            OutboundResponsePayload payload) {
-        String content = payload.content() != null ? payload.content() : "";
-        var action = channel.sendMessage(content);
-
+    private DispatchResult sendViaChannel(GuildMessageChannel channel, OutboundResponsePayload payload) {
+        var action = channel.sendMessage(text(payload));
         if (payload.messageId() != null) {
             action.setMessageReference(payload.messageId()).failOnInvalidReply(false);
         }
@@ -134,47 +136,56 @@ public class DiscordResponseExecutor {
         var embeds = buildEmbeds(payload.embeds());
         if (!embeds.isEmpty()) action.addEmbeds(embeds);
 
-        var files = downloadFiles(payload.attachments());
+        var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.addFiles(files);
 
-        action.queue(
-                msg -> {
-                    log.debug("Channel message sent [messageId={}]", msg.getId());
-                    if (payload.messageId() != null) {
-                        botMessageRegistry.register(payload.messageId(), msg.getId());
-                    }
-                },
-                err -> {
-                    log.error("Failed to send channel message", err);
-                    var fallback = channel.sendMessage("Ocorreu uma falha ao enviar a resposta.");
-                    if (payload.messageId() != null) fallback.setMessageReference(payload.messageId()).failOnInvalidReply(false);
-                    fallback.queue(null, e -> log.warn("Failed to send channel error fallback", e));
-                });
-        return DispatchResult.success(null, null);
+        var result = await(action, () -> {
+            var fallback = channel.sendMessage("Ocorreu uma falha ao enviar a resposta.");
+            if (payload.messageId() != null) fallback.setMessageReference(payload.messageId()).failOnInvalidReply(false);
+            fallback.queue(null, e -> log.warn("Failed to send channel error fallback", e));
+        });
+        if (result.success() && payload.messageId() != null && result.discordMessageId() != null) {
+            botMessageRegistry.register(payload.messageId(), result.discordMessageId());
+        }
+        return result;
     }
 
-    private DispatchResult editViaChannel(
-            net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel,
-            OutboundResponsePayload payload) {
-        String content = payload.content() != null ? payload.content() : "";
-        String targetId = botMessageRegistry.getBotMessageId(payload.messageId())
-                .orElse(payload.messageId());
-        var action = channel.editMessageById(targetId, content);
+    private DispatchResult editViaChannel(GuildMessageChannel channel, OutboundResponsePayload payload) {
+        String targetId = botMessageRegistry.getBotMessageId(payload.messageId()).orElse(payload.messageId());
+        var action = channel.editMessageById(targetId, text(payload));
 
         var embeds = buildEmbeds(payload.embeds());
         if (!embeds.isEmpty()) action.setEmbeds(embeds);
 
-        var files = downloadFiles(payload.attachments());
+        var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.setFiles(files);
 
-        action.queue(
-                msg -> log.debug("Channel message edited [messageId={}]", msg.getId()),
-                err -> {
-                    log.error("Failed to edit channel message", err);
-                    channel.sendMessage("Ocorreu uma falha ao editar a resposta.")
-                            .queue(null, e -> log.warn("Failed to send channel error fallback", e));
-                });
-        return DispatchResult.success(null, null);
+        return await(action, () -> channel.sendMessage("Ocorreu uma falha ao editar a resposta.")
+                .queue(null, e -> log.warn("Failed to send channel error fallback", e)));
+    }
+
+    private DispatchResult await(RestAction<Message> action, Runnable onFailure) {
+        try {
+            Message message = action.submit().get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            return message == null
+                    ? DispatchResult.success(null, null)
+                    : DispatchResult.success(message.getId(), message.getChannelId());
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            log.error("Discord rejected the response", cause);
+            onFailure.run();
+            return DispatchResult.failure(cause.getMessage());
+        } catch (TimeoutException e) {
+            log.error("Discord did not answer within {}", timeout);
+            return DispatchResult.failure("timeout after " + timeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return DispatchResult.failure("interrupted");
+        }
+    }
+
+    private static String text(OutboundResponsePayload payload) {
+        return payload.content() != null ? payload.content() : "";
     }
 
     private List<MessageEmbed> buildEmbeds(List<Map<String, Object>> embedMaps) {
@@ -214,20 +225,16 @@ public class DiscordResponseExecutor {
         return embeds;
     }
 
-    private List<FileUpload> downloadFiles(List<OutboundAttachment> attachments) {
+    private List<FileUpload> openFiles(List<OutboundAttachment> attachments) {
         if (attachments == null || attachments.isEmpty()) return List.of();
         List<FileUpload> files = new ArrayList<>();
         for (var att : attachments) {
             try {
-                byte[] bytes;
-                try (var stream = attachmentDownloader.download(att.url())) {
-                    bytes = stream.readAllBytes();
-                }
-                var upload = FileUpload.fromData(bytes, att.name());
+                var upload = FileUpload.fromData(attachmentDownloader.download(att.url()), att.name());
                 if (att.description() != null) upload.setDescription(att.description());
                 files.add(upload);
             } catch (Exception e) {
-                log.error("Failed to download attachment [url={}, name={}]", att.url(), att.name(), e);
+                log.error("Failed to open attachment [url={}, name={}]", att.url(), att.name(), e);
             }
         }
         return files;

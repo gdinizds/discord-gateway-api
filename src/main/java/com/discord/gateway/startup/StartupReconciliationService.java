@@ -11,10 +11,11 @@ import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.concurrent.Executor;
 
 @Service
 public class StartupReconciliationService extends ListenerAdapter {
@@ -22,16 +23,23 @@ public class StartupReconciliationService extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(StartupReconciliationService.class);
 
     private final GuildLifecycleService guildLifecycleService;
+    private final Executor executor;
 
+    @Autowired
     public StartupReconciliationService(GuildLifecycleService guildLifecycleService) {
+        this(guildLifecycleService, task -> Thread.ofVirtual().name("startup-reconciliation").start(task));
+    }
+
+    StartupReconciliationService(GuildLifecycleService guildLifecycleService, Executor executor) {
         this.guildLifecycleService = guildLifecycleService;
+        this.executor = executor;
     }
 
     @Override
-    @Transactional
     public void onReady(ReadyEvent event) {
-        reconcileGuilds(event.getJDA());
-        registerConfigCommand(event.getJDA());
+        var jda = event.getJDA();
+        registerConfigCommand(jda);
+        executor.execute(() -> reconcileGuilds(jda));
     }
 
     private void reconcileGuilds(JDA jda) {

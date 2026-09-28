@@ -6,6 +6,7 @@ import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
 import com.discord.gateway.executor.InteractionHookRegistry;
 import com.discord.gateway.listener.DiscordEventListener;
+import com.discord.gateway.listener.EventSequencer;
 import com.discord.gateway.model.DiscordEventPayload;
 import com.discord.gateway.model.GuildInfo;
 import com.discord.gateway.model.UserInfo;
@@ -19,9 +20,12 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,7 +70,8 @@ class CircuitBreakerIT {
         eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
                 hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry,
-                new EphemeralCommandRegistry(mock(BotCommandRepository.class)));
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
+                EventSequencer.direct());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -112,7 +117,10 @@ class CircuitBreakerIT {
         var user    = mock(User.class);
         var channel = mock(MessageChannelUnion.class);
         var event   = mock(SlashCommandInteractionEvent.class);
-        var reply   = mock(ReplyCallbackAction.class);
+        var defer   = mock(ReplyCallbackAction.class);
+        var hook    = mock(InteractionHook.class);
+        @SuppressWarnings("unchecked")
+        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
 
         when(event.getGuild()).thenReturn(guild);
         when(guild.getId()).thenReturn("guild-1");
@@ -121,16 +129,18 @@ class CircuitBreakerIT {
         when(event.getUser()).thenReturn(user);
         when(user.getId()).thenReturn("user-1");
         when(event.getToken()).thenReturn("token-1");
+        when(event.getName()).thenReturn("ping");
         when(event.getFullCommandName()).thenReturn("ping");
         when(event.getOptions()).thenReturn(List.of());
-        when(event.reply(anyString())).thenReturn(reply);
-        when(reply.setEphemeral(true)).thenReturn(reply);
+        when(event.getHook()).thenReturn(hook);
+        when(event.deferReply(false)).thenReturn(defer);
+        when(hook.editOriginal(anyString())).thenReturn(edit);
 
         listener.onSlashCommandInteraction(event);
 
-        verify(event).reply(argThat((String msg) -> msg.contains("indisponível")));
-        verify(reply).setEphemeral(true);
-        verify(reply).queue();
+        verify(event).deferReply(false);
+        verify(hook).editOriginal(argThat((String msg) -> msg.contains("indisponível")));
+        verify(edit).queue(isNull(), any());
     }
 
     @Test

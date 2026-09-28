@@ -13,11 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class BotCommandPersistenceService {
 
     private static final Logger log = LoggerFactory.getLogger(BotCommandPersistenceService.class);
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final BotCommandRepository commandRepository;
     private final BotCommandLogRepository logRepository;
@@ -64,11 +66,15 @@ public class BotCommandPersistenceService {
     public void saveResult(BotCommand command, CommandEventType eventType,
                            String discordCmdId, boolean success, String error) {
         postgresqlCb.executeRunnable(() -> {
+            var managed = command.getId() != null
+                    ? commandRepository.findById(command.getId()).orElse(command)
+                    : command;
             if (discordCmdId != null) {
                 command.setDiscordCmdId(discordCmdId);
+                managed.setDiscordCmdId(discordCmdId);
             }
             logRepository.save(new BotCommandLog(
-                    command, eventType, command.getGuildId(), success, error));
+                    managed, eventType, managed.getGuildId(), success, error));
         });
         meterRegistry.counter("discord.gateway.commands.processed",
                 "success", String.valueOf(success)).increment();
@@ -77,7 +83,7 @@ public class BotCommandPersistenceService {
     private String serializeParameters(BotCommandPayload payload) {
         if (payload.parameters() == null || payload.parameters().isEmpty()) return "[]";
         try {
-            return new tools.jackson.databind.json.JsonMapper().writeValueAsString(payload.parameters());
+            return JSON.writeValueAsString(payload.parameters());
         } catch (Exception e) {
             log.warn("Failed to serialize parameters for command {}", payload.name());
             return "[]";

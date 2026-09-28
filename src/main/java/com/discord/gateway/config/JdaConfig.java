@@ -34,7 +34,6 @@ public class JdaConfig {
                         GatewayIntent.GUILD_MEMBERS,
                         GatewayIntent.GUILD_MODERATION)
                 .setHttpClient(httpClient)
-                .setEventPool(Executors.newVirtualThreadPerTaskExecutor())
                 .setCallbackPool(Executors.newVirtualThreadPerTaskExecutor())
                 .addEventListeners(listener, reconciliation)
                 .build()

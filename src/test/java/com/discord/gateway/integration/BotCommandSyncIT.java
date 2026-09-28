@@ -1,6 +1,7 @@
 package com.discord.gateway.integration;
 
 import com.discord.gateway.command.BotCommandPersistenceService;
+import com.discord.gateway.domain.BotCommand;
 import com.discord.gateway.domain.CommandEventType;
 import com.discord.gateway.domain.CommandPrefix;
 import com.discord.gateway.model.BotCommandPayload;
@@ -74,5 +75,33 @@ class BotCommandSyncIT {
                 .toList();
         assertThat(logs).anyMatch(l -> true);
         assertThat(command.getDiscordCmdId()).isEqualTo("discord-cmd-xyz");
+        assertThat(commandRepository.findById(command.getId()))
+                .get()
+                .extracting(BotCommand::getDiscordCmdId)
+                .isEqualTo("discord-cmd-xyz");
+    }
+
+    @Test
+    void deleteAfterRegister_usesPersistedDiscordId() {
+        var payload = new BotCommandPayload("guild-it-4", "SLASH",
+                "temp", "Temporario", List.of(), false);
+        persistenceService.saveResult(persistenceService.upsert(payload),
+                CommandEventType.REGISTERED, "discord-cmd-temp", true, null);
+
+        var deleted = persistenceService.upsert(new BotCommandPayload("guild-it-4", "SLASH",
+                "temp", "Temporario", List.of(), true));
+
+        assertThat(deleted.isDeleted()).isTrue();
+        assertThat(deleted.getDiscordCmdId()).isEqualTo("discord-cmd-temp");
+    }
+
+    @Test
+    void sameNameWithDifferentPrefixes_coexist() {
+        var slash = persistenceService.upsert(new BotCommandPayload("guild-it-5", "SLASH",
+                "ia", "Slash", List.of(), false));
+        var dot = persistenceService.upsert(new BotCommandPayload("guild-it-5", "DOT",
+                "ia", "Dot", List.of(), false));
+
+        assertThat(dot.getId()).isNotEqualTo(slash.getId());
     }
 }

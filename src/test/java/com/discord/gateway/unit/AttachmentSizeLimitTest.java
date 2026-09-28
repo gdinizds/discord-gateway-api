@@ -12,13 +12,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.ByteArrayInputStream;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -119,6 +124,69 @@ class AttachmentSizeLimitTest {
         assertThatThrownBy(() ->
                 relayService.relay("http://cdn.discord.com/medium.mp4", "medium.mp4",
                         dbMax + 1, "guild-restricted", "msg-6", tierMax))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("exceeds");
+    }
+
+    @Test
+    void knownSizeIsStreamedWithDeclaredContentLength() {
+        relayService.relay("https://cdn.discordapp.com/a.txt", "a.txt", 5L, "guild-1", "msg-7", 0L);
+
+        ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
+        ArgumentCaptor<RequestBody> body = ArgumentCaptor.forClass(RequestBody.class);
+        verify(s3Client).putObject(request.capture(), body.capture());
+        assertThat(request.getValue().key()).isEqualTo("guild-1/msg-7/a.txt");
+        assertThat(request.getValue().contentLength()).isEqualTo(5L);
+        assertThat(body.getValue().optionalContentLength()).contains(5L);
+    }
+
+    @Test
+    void unknownSizeFallsBackToBufferedUpload() {
+        relayService.relay("https://cdn.discordapp.com/b.txt", "b.txt", 0L, "guild-1", "msg-8", 0L);
+
+        ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(request.capture(), any(RequestBody.class));
+        assertThat(request.getValue().contentLength()).isEqualTo(5L);
+    }
+
+    @Test
+    void multipleAttachmentsAreRelayedConcurrentlyInOrder() {
+        var started = new java.util.concurrent.CountDownLatch(3);
+        var parallel = new AttachmentRelayService(
+                url -> {
+                    started.countDown();
+                    try {
+                        if (!started.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                            throw new java.io.IOException("downloads did not run concurrently");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return new ByteArrayInputStream("bytes".getBytes());
+                },
+                s3Client, CircuitBreaker.ofDefaults("garage-parallel"), guildConfigRepository,
+                new SimpleMeterRegistry(), DEFAULT_MAX, "discord-attachments", "http://garage");
+
+        var urls = parallel.relayAll(java.util.List.of(
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/1", "a.png", 5),
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/2", "b.png", 5),
+                new AttachmentRelayService.Source("https://cdn.discordapp.com/3", "c.png", 5)),
+                "guild-1", "msg-9", 0L);
+
+        assertThat(started.getCount()).isZero();
+        assertThat(urls).containsExactly(
+                "http://garage/discord-attachments/guild-1/msg-9/a.png",
+                "http://garage/discord-attachments/guild-1/msg-9/b.png",
+                "http://garage/discord-attachments/guild-1/msg-9/c.png");
+        parallel.close();
+    }
+
+    @Test
+    void oneOversizedAttachmentFailsTheWholeBatch() {
+        assertThatThrownBy(() -> relayService.relayAll(java.util.List.of(
+                        new AttachmentRelayService.Source("https://cdn.discordapp.com/1", "ok.png", 5),
+                        new AttachmentRelayService.Source("https://cdn.discordapp.com/2", "huge.bin", DEFAULT_MAX + 1)),
+                "guild-1", "msg-10", 0L))
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("exceeds");
     }

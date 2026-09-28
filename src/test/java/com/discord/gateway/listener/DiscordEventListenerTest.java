@@ -16,7 +16,14 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
+import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
+import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
+import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
+import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,10 +32,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,7 +59,8 @@ public class DiscordEventListenerTest {
                 eventRouter, inboundEventLogService, attachmentRelayService, 
                 hookRegistry, guildLifecycleService, guildConfigService, 
                 topicRegistry, meterRegistry,
-                new EphemeralCommandRegistry(mock(BotCommandRepository.class))
+                new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
+                EventSequencer.direct()
         );
     }
 
@@ -123,5 +131,121 @@ public class DiscordEventListenerTest {
         @SuppressWarnings("unchecked")
         java.util.Map<String, Object> raw = (java.util.Map<String, Object>) payload.rawPayload();
         assertThat(raw).containsEntry("content", "Hello world");
+    }
+
+    @Test
+    void slashCommandIsDeferredAndHookRegisteredBeforePublishing() {
+        var event = slashEvent();
+        var hook = mock(InteractionHook.class);
+        var deferAction = mock(ReplyCallbackAction.class);
+        when(event.getHook()).thenReturn(hook);
+        when(event.deferReply(false)).thenReturn(deferAction);
+        when(eventRouter.isChannelAllowed("guild-1", "channel-1")).thenReturn(true);
+        when(eventRouter.route(any(), any(), any())).thenReturn(true);
+
+        listener.onSlashCommandInteraction(event);
+
+        var order = inOrder(hookRegistry, event, eventRouter);
+        order.verify(hookRegistry).register("token-1", hook);
+        order.verify(event).deferReply(false);
+        order.verify(eventRouter).route(any(), any(), eq(Map.of("command-name", "ping")));
+        verify(deferAction).queue(isNull(), any());
+        verify(inboundEventLogService).log(any());
+    }
+
+    @Test
+    void slashCommandInFilteredChannelRepliesEphemeralWithoutPublishing() {
+        var event = slashEvent();
+        var replyAction = mock(ReplyCallbackAction.class);
+        when(event.reply(anyString())).thenReturn(replyAction);
+        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+        when(eventRouter.isChannelAllowed("guild-1", "channel-1")).thenReturn(false);
+
+        listener.onSlashCommandInteraction(event);
+
+        verify(event).reply(DiscordEventListener.CHANNEL_NOT_ALLOWED_MESSAGE);
+        verify(replyAction).queue(isNull(), any());
+        verify(event, never()).deferReply(anyBoolean());
+        verify(eventRouter, never()).route(any(), any(), any());
+        verifyNoInteractions(hookRegistry, inboundEventLogService);
+        assertThat(meterRegistry.counter("discord.gateway.events.discarded",
+                "type", "INTERACTION_COMMAND", "reason", "channel_filtered").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void memberJoinPublishesEventWithoutTouchingGuildRegistry() {
+        var event = mock(GuildMemberJoinEvent.class);
+        var guild = mock(Guild.class);
+        var user = mock(User.class);
+        when(event.getGuild()).thenReturn(guild);
+        when(event.getUser()).thenReturn(user);
+        when(guild.getId()).thenReturn("guild-1");
+
+        listener.onGuildMemberJoin(event);
+
+        var captor = ArgumentCaptor.forClass(DiscordEventPayload.class);
+        verify(eventRouter).route(captor.capture(), isNull());
+        assertThat(captor.getValue().eventType()).isEqualTo("GUILD_MEMBER");
+        assertThat(captor.getValue().rawPayload()).containsEntry("action", "JOIN");
+        verifyNoInteractions(guildLifecycleService);
+    }
+
+    @Test
+    void memberRemovePublishesEventWithoutMarkingGuildAsLeft() {
+        var event = mock(GuildMemberRemoveEvent.class);
+        var guild = mock(Guild.class);
+        var user = mock(User.class);
+        when(event.getGuild()).thenReturn(guild);
+        when(event.getUser()).thenReturn(user);
+        when(guild.getId()).thenReturn("guild-1");
+
+        listener.onGuildMemberRemove(event);
+
+        var captor = ArgumentCaptor.forClass(DiscordEventPayload.class);
+        verify(eventRouter).route(captor.capture(), isNull());
+        assertThat(captor.getValue().rawPayload()).containsEntry("action", "LEAVE");
+        verifyNoInteractions(guildLifecycleService);
+    }
+
+    @Test
+    void botJoiningGuildRegistersIt() {
+        var event = mock(GuildJoinEvent.class);
+        var guild = mock(Guild.class);
+        when(event.getGuild()).thenReturn(guild);
+
+        listener.onGuildJoin(event);
+
+        verify(guildLifecycleService).onJoin(guild);
+    }
+
+    @Test
+    void botLeavingGuildMarksItAsLeft() {
+        var event = mock(GuildLeaveEvent.class);
+        var guild = mock(Guild.class);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn("guild-1");
+        when(guild.getName()).thenReturn("Guild 1");
+
+        listener.onGuildLeave(event);
+
+        verify(guildLifecycleService).onLeave("guild-1", "Guild 1");
+    }
+
+    private SlashCommandInteractionEvent slashEvent() {
+        var event = mock(SlashCommandInteractionEvent.class);
+        var guild = mock(Guild.class);
+        var user = mock(User.class);
+        var channel = mock(MessageChannelUnion.class);
+        lenient().when(event.getGuild()).thenReturn(guild);
+        lenient().when(guild.getId()).thenReturn("guild-1");
+        lenient().when(event.getName()).thenReturn("ping");
+        lenient().when(event.getFullCommandName()).thenReturn("ping");
+        lenient().when(event.getChannel()).thenReturn(channel);
+        lenient().when(channel.getId()).thenReturn("channel-1");
+        lenient().when(event.getUser()).thenReturn(user);
+        lenient().when(user.getId()).thenReturn("user-1");
+        lenient().when(event.getToken()).thenReturn("token-1");
+        lenient().when(event.getOptions()).thenReturn(List.of());
+        return event;
     }
 }

@@ -15,10 +15,10 @@ RUN ./gradlew nativeCompile --no-daemon -x test
 ### --- Stage 2: Ultra-lightweight Native Container (Default) ---
 FROM debian:bookworm-slim AS native
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 && rm -rf /var/lib/apt/lists/*
-RUN groupadd -r app && useradd -r -g app app
+RUN groupadd -r -g 10001 app && useradd -r -u 10001 -g app app
 WORKDIR /app
 COPY --from=native-builder /app/build/native/nativeCompile/discord-event-gateway /app/discord-event-gateway
-USER app
+USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["/app/discord-event-gateway"]
 
@@ -33,10 +33,10 @@ COPY src/ src/
 RUN ./gradlew bootJar --no-daemon -x test
 
 FROM ghcr.io/graalvm/jdk-community:25 AS jvm
-RUN groupadd -r app && useradd -r -g app app
+RUN groupadd -r -g 10001 app && useradd -r -u 10001 -g app app
 WORKDIR /app
 COPY --from=jvm-builder /app/build/libs/discord-event-gateway-*.jar app.jar
-USER app
+USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["java", \
   "-XX:+UnlockExperimentalVMOptions", \
