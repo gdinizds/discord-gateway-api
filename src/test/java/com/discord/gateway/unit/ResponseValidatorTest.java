@@ -107,4 +107,19 @@ class ResponseValidatorTest {
                 .satisfies(ex -> assertThat(((PayloadValidationException) ex).getMissingFields())
                         .anySatisfy(f -> assertThat(f).contains("interactionToken")));
     }
+
+    @Test
+    void channelReplyWithoutReferencedMessagePasses() {
+        var payload = new OutboundResponsePayload(
+                "REPLY", null, null, "800000000000000001", "⏰ <@1> lembrete", null, null, null, null);
+        assertThatNoException().isThrownBy(() -> validator.validate(payload, "{}"));
+    }
+
+    @Test
+    void channelUpdateWithoutMessageIdIsRejected() {
+        var payload = new OutboundResponsePayload(
+                "UPDATE_MESSAGE", null, null, "800000000000000001", "Content", null, null, null, null);
+        assertThatThrownBy(() -> validator.validate(payload, "{}"))
+                .isInstanceOf(PayloadValidationException.class);
+    }
 }
