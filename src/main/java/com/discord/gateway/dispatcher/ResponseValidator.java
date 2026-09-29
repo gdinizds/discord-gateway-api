@@ -30,9 +30,10 @@ public class ResponseValidator {
                     "responseType desconhecido: " + payload.responseType(), missing, rawJson);
         }
 
-        boolean hasToken   = payload.interactionToken() != null && !payload.interactionToken().isBlank();
-        boolean hasChannel = payload.channelId() != null && !payload.channelId().isBlank()
-                          && payload.messageId() != null && !payload.messageId().isBlank();
+        boolean hasToken     = payload.interactionToken() != null && !payload.interactionToken().isBlank();
+        boolean hasChannelId = payload.channelId() != null && !payload.channelId().isBlank();
+        boolean hasMessageId = payload.messageId() != null && !payload.messageId().isBlank();
+        boolean hasChannel   = hasChannelId && (hasMessageId || "REPLY".equals(payload.responseType()));
         if (!hasToken && !hasChannel) {
             missing.add("interactionToken or (channelId + messageId)");
         }
