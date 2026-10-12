@@ -33,32 +33,32 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew dependencies --no-daemon
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon -x test
 
-# Extrai dependências para lib/ mantendo o thin jar (otimiza Docker layer cache e startup)
-RUN java -Djarmode=tools -jar build/libs/discord-event-gateway-*.jar extract --destination build/extracted
+# Extrai dependências para lib/ e nomeia o thin jar explicitamente como app.jar
+RUN java -Djarmode=tools -jar build/libs/discord-event-gateway-*.jar extract --application-filename app.jar --destination build/extracted
 
 FROM ghcr.io/graalvm/jdk-community:25 AS jvm
 RUN groupadd -r app && useradd -r -g app app
 WORKDIR /app
 
-# 1. Dependências externas (~120MB) - raramente mudam, ficam 100% em cache no Docker
+# 1. Dependências externas (~120MB) - raramente mudam, 100% cacheadas pelo Docker
 COPY --chown=app:app --from=jvm-builder /app/build/extracted/lib/ lib/
-# 2. Thin application jar (~1MB) - atualizado rapidamente em cada build
-COPY --chown=app:app --from=jvm-builder /app/build/extracted/*.jar app.jar
+# 2. Thin application jar (~1MB) - copiado diretamente como arquivo app.jar
+COPY --chown=app:app --from=jvm-builder /app/build/extracted/app.jar app.jar
 
 USER app
 EXPOSE 8080
 
-# GraalVM JIT & JVM Performance Arguments:
-# - Execução direta em formato JSON array (evita interpretação de shell/sh e bugs de escape de quebra de linha)
-# - Suporta opções adicionais em runtime automaticamente via env var JAVA_TOOL_OPTIONS
+# Flags de Alta Performance e Compatibilidade para GraalVM Community JIT:
+# - JVMCI & Graal JIT: Ativa o compilador GraalVM JIT no lugar do C2 (otimizações de inlining, vetorização e escape analysis são ativas por padrão).
+# - TieredCompilation: C1 para inicialização rápida + GraalVM JIT no Tier 4 para pico de processamento.
+# - ZGC Generacional: Pausas sub-milissegundo (<1ms), ideal para WebSockets (JDA) e streaming Kafka.
+# - Container Memory Ergonomics: 75% da RAM do pod para a Heap, 25% para metaspace/direct buffers (Netty/Kafka).
+# - String Deduplication: Economia de memória em JSONs e IDs de gateway.
+# - Network/DNS: TTL de 30s para service discovery dinâmico no Kubernetes.
 ENTRYPOINT ["java", \
   "-XX:+UnlockExperimentalVMOptions", \
   "-XX:+EnableJVMCI", \
   "-XX:+UseJVMCICompiler", \
-  "-Djdk.graal.TuneInlinerExploration=0.5", \
-  "-Djdk.graal.OptimizeLongJumps=true", \
-  "-Djdk.graal.RemoveLoopSafepoints=true", \
-  "-Djdk.graal.Vectorization=true", \
   "-XX:+TieredCompilation", \
   "-XX:+UseZGC", \
   "-XX:MaxRAMPercentage=75.0", \
