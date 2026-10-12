@@ -103,8 +103,12 @@ graalvmNative {
                 '-O3',
                 '--no-fallback',
                 '--enable-url-protocols=http,https',
+                '-march=compatibility',
                 '-H:+ReportExceptionStackTraces',
-                '--enable-monitoring=heapdump,threaddump,jfr'
+                '-H:+UnlockExperimentalVMOptions',
+                '--enable-monitoring=heapdump,threaddump,jfr',
+                '--initialize-at-build-time=org.slf4j.LoggerFactory,ch.qos.logback',
+                '-H:Preserve=package=com.discord.gateway.*,package=org.flywaydb.*,package=org.jboss.logging.*,package=org.postgresql.*,package=net.jpountz.*,package=org.springframework.cloud.consul.model.*,package=com.ecwid.consul.*,package=net.dv8tion.jda.*,package=com.neovisionaries.ws.*,package=net.logstash.logback.*,package=gnu.trove.*'
             )
         }
     }
