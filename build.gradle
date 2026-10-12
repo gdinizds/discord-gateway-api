@@ -100,9 +100,11 @@ graalvmNative {
             imageName = 'discord-event-gateway'
             mainClass = 'com.discord.gateway.DiscordEventGatewayApplication'
             buildArgs.addAll(
+                '-O3',
                 '--no-fallback',
                 '--enable-url-protocols=http,https',
-                '-H:+ReportExceptionStackTraces'
+                '-H:+ReportExceptionStackTraces',
+                '--enable-monitoring=heapdump,threaddump,jfr'
             )
         }
     }

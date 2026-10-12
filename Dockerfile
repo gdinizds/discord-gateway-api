@@ -48,8 +48,10 @@ COPY --chown=app:app --from=jvm-builder /app/build/extracted/app.jar app.jar
 USER app
 EXPOSE 8080
 
-# Flags de Alta Performance e Compatibilidade para Oracle GraalVM (GFTC) JIT:
-# - JVMCI & Graal JIT: Ativa o compilador GraalVM JIT no lugar do C2 (otimizações de inlining, vetorização e escape analysis são ativas por padrão).
+# Flags de Alta Performance e Otimizações Oracle GraalVM (GFTC) JIT:
+# - JVMCI & Graal Enterprise: Ativa o compilador GraalVM JIT com perfil enterprise (inlining profundo, análise de escape agressiva).
+# - Vectorization: Vetorização SIMD automática para aceleração de serialização JSON e processamento de buffers Netty.
+# - PriorityInlining: Inlining guiado por prioridade para otimização de chamadas virtuais e lambdas/streams reativos.
 # - TieredCompilation: C1 para inicialização rápida + GraalVM JIT no Tier 4 para pico de processamento.
 # - ZGC Generacional: Pausas sub-milissegundo (<1ms), ideal para WebSockets (JDA) e streaming Kafka.
 # - Container Memory Ergonomics: 75% da RAM do pod para a Heap, 25% para metaspace/direct buffers (Netty/Kafka).
@@ -59,6 +61,9 @@ ENTRYPOINT ["java", \
   "-XX:+UnlockExperimentalVMOptions", \
   "-XX:+EnableJVMCI", \
   "-XX:+UseJVMCICompiler", \
+  "-Djdk.graal.CompilerConfiguration=enterprise", \
+  "-Djdk.graal.Vectorization=true", \
+  "-Djdk.graal.UsePriorityInlining=true", \
   "-XX:+TieredCompilation", \
   "-XX:+UseZGC", \
   "-XX:MaxRAMPercentage=75.0", \

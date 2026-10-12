@@ -218,15 +218,18 @@ FROM container-registry.oracle.com/graalvm/native-image:25 AS native-builder
 FROM debian:bookworm-slim AS native
 ```
 
-### Otimizações Habilitadas no Dockerfile:
+### Otimizações Habilitadas no Dockerfile e Gradle:
 - **Oracle GraalVM (GFTC) Native Image & AOT**:
   - Binário executável C++ ultraleve (~60MB), inicialização em **< 50ms** e consumo de memória em repouso de apenas **~40MB RAM**.
-  - Otimizações avançadas de compilador do Oracle GraalVM (análise de escape profunda, inlining agressivo e suporte a GC corporativo como G1 GC).
+  - Flag `-O3` habilitada no `build.gradle` para nível máximo de otimização de compilador (inlining e loop unrolling agressivos).
+  - Suporte a diagnóstico e observabilidade nativa com `--enable-monitoring=heapdump,threaddump,jfr`.
   - Configurações centralizadas de reflexão em [`GraalVmHints.java`](src/main/java/com/discord/gateway/config/GraalVmHints.java) cobrindo DTOs, JPA e Jackson.
 - **Oracle GraalVM (GFTC) JIT com Generational ZGC**:
-  - `-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI -XX:+UseJVMCICompiler`: Ativa o compilador JIT Graal de alta taxa de throughput.
-  - `-XX:+UseZGC -XX:+ZGenerational`: Coletor de lixo de pausa ultra-baixa (< 1ms), ideal para streams contínuos de eventos WebSocket e Kafka.
-  - `-Djdk.graal.Vectorization=true`: Vetorização SIMD automática para aceleração de serialização JSON e manipulação de buffers.
+  - `-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI -XX:+UseJVMCICompiler`: Ativa o compilador JIT Graal no lugar do C2.
+  - `-Djdk.graal.CompilerConfiguration=enterprise`: Habilita a suíte de otimizações enterprise proprietárias da Oracle para taxa máxima de throughput.
+  - `-Djdk.graal.Vectorization=true`: Vetorização SIMD automática para aceleração de serialização JSON e processamento de buffers Netty.
+  - `-Djdk.graal.UsePriorityInlining=true`: Inlining guiado por prioridade profunda para otimização de chamadas virtuais e streams reativos.
+  - `-XX:+UseZGC`: Coletor ZGC geracional (padrão no JDK 25) com pausas sub-milissegundo (< 1ms), ideal para WebSockets e Kafka.
   - `-XX:MaxRAMPercentage=75.0`: Adequação dinâmica ao limite de memória do container.
 - **Java 25 Virtual Threads (Project Loom)**:
   - JDA configurado com `setCallbackPool(Executors.newVirtualThreadPerTaskExecutor())`.
