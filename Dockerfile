@@ -48,42 +48,25 @@ COPY --chown=app:app --from=jvm-builder /app/build/extracted/*.jar app.jar
 USER app
 EXPOSE 8080
 
-# --- Flags de Alta Performance GraalVM JIT & JVM ---
-# 1. Compilação GraalVM JIT (JVMCI):
-#    - EnableJVMCI / UseJVMCICompiler: Habilita o compilador Graal JIT no lugar do C2.
-#    - TuneInlinerExploration=0.5: Explora mais oportunidades de inlining agressivo para pico de throughput.
-#    - OptimizeLongJumps=true: Reduz tamanho de instruções de salto x86_64 (melhor uso de cache de instrução).
-#    - RemoveLoopSafepoints=true: Elimina checks de safepoint redundantes em loops contados.
-#    - Vectorization=true: Vetorização automática SIMD (acelera serialização/deserialização JSON e buffers de rede).
-#    - TieredCompilation: O C1 entrega warmup rápido enquanto o Graal compila métodos quentes para performance máxima.
-#
-# 2. Garbage Collector & Memória (ZGC Generacional):
-#    - UseZGC: Latência de pausa sub-milissegundo (<1ms), essencial para evitar timeouts de WebSocket (JDA) e Kafka.
-#    - MaxRAMPercentage=75.0: Aloca 75% da RAM do container para a heap (evita o default de 25% que desperdiça recursos).
-#    - InitialRAMPercentage=50.0: Evita custos de expansão contínua de heap durante a subida.
-#    - UseStringDeduplication: Elimina strings duplicadas na heap (IDs snowflake, nomes de evento, payloads JSON).
-#    - ExitOnOutOfMemoryError: Garante encerramento limpo para o orquestrador (Docker/K8s) reiniciar o container em caso de OOM.
-#
-# 3. Rede & Sistema:
-#    - networkaddress.cache.ttl=30: Limita cache DNS para suportar service discovery dinâmico (Consul, DB, Kafka failovers).
-#    - java.security.egd: Geração não-bloqueante de entropia para handshakes SSL/TLS rápidos.
-ENV JAVA_OPTS="\
-  -XX:+UnlockExperimentalVMOptions \
-  -XX:+EnableJVMCI \
-  -XX:+UseJVMCICompiler \
-  -Djdk.graal.TuneInlinerExploration=0.5 \
-  -Djdk.graal.OptimizeLongJumps=true \
-  -Djdk.graal.RemoveLoopSafepoints=true \
-  -Djdk.graal.Vectorization=true \
-  -XX:+TieredCompilation \
-  -XX:+UseZGC \
-  -XX:MaxRAMPercentage=75.0 \
-  -XX:InitialRAMPercentage=50.0 \
-  -XX:+UseStringDeduplication \
-  -XX:+ExitOnOutOfMemoryError \
-  -Djava.security.egd=file:/dev/./urandom \
-  -Dnetworkaddress.cache.ttl=30 \
-  -Dnetworkaddress.cache.negative.ttl=10 \
-  -Dfile.encoding=UTF-8"
-
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar \"$@\"", "--"]
+# GraalVM JIT & JVM Performance Arguments:
+# - Execução direta em formato JSON array (evita interpretação de shell/sh e bugs de escape de quebra de linha)
+# - Suporta opções adicionais em runtime automaticamente via env var JAVA_TOOL_OPTIONS
+ENTRYPOINT ["java", \
+  "-XX:+UnlockExperimentalVMOptions", \
+  "-XX:+EnableJVMCI", \
+  "-XX:+UseJVMCICompiler", \
+  "-Djdk.graal.TuneInlinerExploration=0.5", \
+  "-Djdk.graal.OptimizeLongJumps=true", \
+  "-Djdk.graal.RemoveLoopSafepoints=true", \
+  "-Djdk.graal.Vectorization=true", \
+  "-XX:+TieredCompilation", \
+  "-XX:+UseZGC", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:InitialRAMPercentage=50.0", \
+  "-XX:+UseStringDeduplication", \
+  "-XX:+ExitOnOutOfMemoryError", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-Dnetworkaddress.cache.ttl=30", \
+  "-Dnetworkaddress.cache.negative.ttl=10", \
+  "-Dfile.encoding=UTF-8", \
+  "-jar", "app.jar"]
