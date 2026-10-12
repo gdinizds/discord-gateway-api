@@ -33,18 +33,17 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew dependencies --no-daemon
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon -x test
 
-# Extrai as camadas do Spring Boot JAR para maximizar reutilização do cache do Docker e tempo de inicialização
-RUN java -Djarmode=tools -jar build/libs/discord-event-gateway-*.jar extract --layers --launcher --destination build/extracted
+# Extrai dependências para lib/ mantendo o thin jar (otimiza Docker layer cache e startup)
+RUN java -Djarmode=tools -jar build/libs/discord-event-gateway-*.jar extract --destination build/extracted
 
 FROM ghcr.io/graalvm/jdk-community:25 AS jvm
 RUN groupadd -r app && useradd -r -g app app
 WORKDIR /app
 
-# Camadas copiadas da menor para a maior frequência de alteração
-COPY --chown=app:app --from=jvm-builder /app/build/extracted/dependencies/ ./
-COPY --chown=app:app --from=jvm-builder /app/build/extracted/spring-boot-loader/ ./
-COPY --chown=app:app --from=jvm-builder /app/build/extracted/snapshot-dependencies/ ./
-COPY --chown=app:app --from=jvm-builder /app/build/extracted/application/ ./
+# 1. Dependências externas (~120MB) - raramente mudam, ficam 100% em cache no Docker
+COPY --chown=app:app --from=jvm-builder /app/build/extracted/lib/ lib/
+# 2. Thin application jar (~1MB) - atualizado rapidamente em cada build
+COPY --chown=app:app --from=jvm-builder /app/build/extracted/*.jar app.jar
 
 USER app
 EXPOSE 8080
@@ -87,4 +86,4 @@ ENV JAVA_OPTS="\
   -Dnetworkaddress.cache.negative.ttl=10 \
   -Dfile.encoding=UTF-8"
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher \"$@\"", "--"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar \"$@\"", "--"]
