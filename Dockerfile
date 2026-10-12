@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ### --- Stage 1: Build Native Executable with GraalVM Native Image ---
-FROM ghcr.io/graalvm/native-image-community:25 AS native-builder
+FROM container-registry.oracle.com/graalvm/native-image:25 AS native-builder
 WORKDIR /app
 
 COPY gradlew .
@@ -24,7 +24,7 @@ EXPOSE 8080
 ENTRYPOINT ["/app/discord-event-gateway"]
 
 ### --- Stage 3: GraalVM JIT High-Throughput Alternative ---
-FROM ghcr.io/graalvm/jdk-community:25 AS jvm-builder
+FROM container-registry.oracle.com/graalvm/jdk:25 AS jvm-builder
 WORKDIR /app
 COPY gradlew .
 COPY gradle/ gradle/
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon -x tes
 # Extrai dependências para lib/ e nomeia o thin jar explicitamente como app.jar
 RUN java -Djarmode=tools -jar build/libs/discord-event-gateway-*.jar extract --application-filename app.jar --destination build/extracted
 
-FROM ghcr.io/graalvm/jdk-community:25 AS jvm
+FROM container-registry.oracle.com/graalvm/jdk:25 AS jvm
 RUN groupadd -r app && useradd -r -g app app
 WORKDIR /app
 
@@ -48,7 +48,7 @@ COPY --chown=app:app --from=jvm-builder /app/build/extracted/app.jar app.jar
 USER app
 EXPOSE 8080
 
-# Flags de Alta Performance e Compatibilidade para GraalVM Community JIT:
+# Flags de Alta Performance e Compatibilidade para Oracle GraalVM (GFTC) JIT:
 # - JVMCI & Graal JIT: Ativa o compilador GraalVM JIT no lugar do C2 (otimizações de inlining, vetorização e escape analysis são ativas por padrão).
 # - TieredCompilation: C1 para inicialização rápida + GraalVM JIT no Tier 4 para pico de processamento.
 # - ZGC Generacional: Pausas sub-milissegundo (<1ms), ideal para WebSockets (JDA) e streaming Kafka.

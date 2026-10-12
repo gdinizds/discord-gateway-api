@@ -1,5 +1,5 @@
 [![Java](https://img.shields.io/badge/Java-25-orange?logo=openjdk)](https://openjdk.org/)
-[![GraalVM](https://img.shields.io/badge/GraalVM-JDK%2025-red?logo=graalvm)](https://www.graalvm.org/)
+[![Oracle GraalVM](https://img.shields.io/badge/Oracle%20GraalVM%20(GFTC)-JDK%2025-red?logo=graalvm)](https://www.graalvm.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.5-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![JDA](https://img.shields.io/badge/JDA-5.2.1-blue)](https://github.com/discord-jda/JDA)
 [![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka%20%2F%20Redpanda-Event--Driven-black?logo=apachekafka)](https://kafka.apache.org/)
@@ -7,11 +7,11 @@
 [![Storage](https://img.shields.io/badge/S3%20%2F%20Garage-Object--Storage-red)](https://garagehq.deuxfleurs.fr/)
 [![Resilience4j](https://img.shields.io/badge/Resilience4j-2.3.0-yellow)](https://resilience4j.readme.io/)
 
-O **Discord Event Gateway** é um serviço de infraestrutura de alto desempenho, reativo e orientado a eventos, projetado para servir como ponte bidirecional entre o Discord e ecossistemas de microsserviços. Construído sobre o **Java 25 com GraalVM** e **Spring Boot 4**, ele recebe eventos da API de Gateway do Discord via **JDA (Java Discord API)**, normaliza os payloads em envelopes padronizados JSON (com identificadores **UUID v7**) e os transmite com baixíssima latência para tópicos **Apache Kafka / Redpanda**.
+O **Discord Event Gateway** é um serviço de infraestrutura de alto desempenho, reativo e orientado a eventos, projetado para servir como ponte bidirecional entre o Discord e ecossistemas de microsserviços. Construído sobre o **Java 25 com Oracle GraalVM (GFTC)** e **Spring Boot 4**, ele recebe eventos da API de Gateway do Discord via **JDA (Java Discord API)**, normaliza os payloads em envelopes padronizados JSON (com identificadores **UUID v7**) e os transmite com baixíssima latência para tópicos **Apache Kafka / Redpanda**.
 
 De forma simétrica, o gateway consome intenções de resposta e registros de comandos emitidos por múltiplos bots consumidores, realizando o despacho concorrente de volta à API do Discord através de webhooks, canais diretos e comandos de barra (*slash commands*).
 
-O sistema foi concebido para **altíssima concorrência**, throughput em rajada, isolamento por canal e suporte nativo a **GraalVM** (compilação *AOT Native Image* e *GraalVM JIT* com ZGC generacional).
+O sistema foi concebido para **altíssima concorrência**, throughput em rajada, isolamento por canal e suporte nativo a **Oracle GraalVM (GFTC)** (compilação *AOT Native Image* e *GraalVM JIT* com ZGC generacional).
 
 ---
 
@@ -27,7 +27,7 @@ graph TD
         U[Usuários & Servidores]
     end
 
-    subgraph "Core: discord-event-gateway (Spring Boot 4 + GraalVM 25)"
+    subgraph "Core: discord-event-gateway (Spring Boot 4 + Oracle GraalVM 25)"
         subgraph "Inbound Engine (JDA + Virtual Threads)"
             JDA_EVT[DiscordEventListener]
             ES[EventSequencer - Virtual Threads]
@@ -208,21 +208,22 @@ sequenceDiagram
 
 ---
 
-## ⚡ Runtime de Alta Performance com GraalVM e Java 25
+## ⚡ Runtime de Alta Performance com Oracle GraalVM (GFTC) e Java 25
 
-A aplicação é preparada para compilação **AOT nativa** ou execução com o compilador **GraalVM JIT**:
+A aplicação é preparada para compilação **AOT nativa** ou execução com o compilador **GraalVM JIT** utilizando os binários oficiais do **Oracle GraalVM** sob licença **GFTC (GraalVM Free Terms and Conditions)**:
 
 ```dockerfile
-# Compilação Multi-Stage no Dockerfile
-FROM ghcr.io/graalvm/native-image-community:25 AS native-builder
+# Compilação Multi-Stage no Dockerfile utilizando Oracle GraalVM (GFTC)
+FROM container-registry.oracle.com/graalvm/native-image:25 AS native-builder
 FROM debian:bookworm-slim AS native
 ```
 
 ### Otimizações Habilitadas no Dockerfile:
-- **GraalVM Native Image & AOT**:
+- **Oracle GraalVM (GFTC) Native Image & AOT**:
   - Binário executável C++ ultraleve (~60MB), inicialização em **< 50ms** e consumo de memória em repouso de apenas **~40MB RAM**.
-  - Configurações centralizadas de reflexão em [`GraalVmHints.java`](file:///C:/Users/guilh/IdeaProjects/discord-gateway-api/src/main/java/com/discord/gateway/config/GraalVmHints.java) cobrindo DTOs, JPA e Jackson.
-- **GraalVM JIT (JVMCI) com Generational ZGC**:
+  - Otimizações avançadas de compilador do Oracle GraalVM (análise de escape profunda, inlining agressivo e suporte a GC corporativo como G1 GC).
+  - Configurações centralizadas de reflexão em [`GraalVmHints.java`](src/main/java/com/discord/gateway/config/GraalVmHints.java) cobrindo DTOs, JPA e Jackson.
+- **Oracle GraalVM (GFTC) JIT com Generational ZGC**:
   - `-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI -XX:+UseJVMCICompiler`: Ativa o compilador JIT Graal de alta taxa de throughput.
   - `-XX:+UseZGC -XX:+ZGenerational`: Coletor de lixo de pausa ultra-baixa (< 1ms), ideal para streams contínuos de eventos WebSocket e Kafka.
   - `-Djdk.graal.Vectorization=true`: Vetorização SIMD automática para aceleração de serialização JSON e manipulação de buffers.
@@ -382,7 +383,7 @@ As configurações podem ser injetadas via **Consul KV**, **Vault Agent** (arqui
 ## 🚀 Execução Local e Compilação
 
 ### Pré-requisitos
-- **Java 25** (GraalVM JDK 25 recomendado)
+- **Java 25** (Oracle GraalVM JDK 25 recomendado)
 - **Docker** ou **Podman**
 - Cluster Kafka / Redpanda e PostgreSQL (para perfis completos)
 
@@ -409,15 +410,15 @@ A aplicação ficará disponível na porta `8080` com console H2 em `/h2-console
 
 ### 3. Build da Imagem de Container (Docker / Podman)
 
-O [Dockerfile](file:///C:/Users/guilh/IdeaProjects/discord-gateway-api/Dockerfile) multi-stage suporta a compilação nativa ou imagem JVM JIT:
+O [Dockerfile](Dockerfile) multi-stage suporta a compilação nativa ou imagem JVM JIT com Oracle GraalVM (GFTC):
 
 ```bash
-# 1. Imagem Nativa GraalVM (Target padrão - ~60MB total):
+# 1. Imagem Nativa Oracle GraalVM (Target padrão - ~60MB total):
 docker build -t discord-event-gateway .
 # ou com Podman:
 podman build -t discord-event-gateway .
 
-# 2. Imagem GraalVM JIT de Alta Performance (Generational ZGC + JVMCI):
+# 2. Imagem Oracle GraalVM JIT de Alta Performance (Generational ZGC + JVMCI):
 docker build --target jvm -t discord-event-gateway:jvm .
 # ou com Podman:
 podman build --target jvm -t discord-event-gateway:jvm .
