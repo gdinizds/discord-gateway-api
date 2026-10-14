@@ -3,6 +3,7 @@ package com.discord.gateway.listener;
 import com.discord.gateway.audit.GuildConfigService;
 import com.discord.gateway.audit.GuildLifecycleService;
 import com.discord.gateway.audit.InboundEventLogService;
+import com.discord.gateway.audit.SafeSearchConfigService;
 import com.discord.gateway.command.EphemeralCommandRegistry;
 import com.discord.gateway.domain.GuildParam;
 import com.discord.gateway.executor.InteractionHookRegistry;
@@ -41,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,7 @@ public class DiscordEventListener extends ListenerAdapter {
     private final InteractionHookRegistry hookRegistry;
     private final GuildLifecycleService guildLifecycleService;
     private final GuildConfigService guildConfigService;
+    private final SafeSearchConfigService safeSearchConfigService;
     private final TopicRegistry topicRegistry;
     private final MeterRegistry meterRegistry;
     private final EphemeralCommandRegistry ephemeralCommands;
@@ -71,6 +74,7 @@ public class DiscordEventListener extends ListenerAdapter {
                                 InteractionHookRegistry hookRegistry,
                                 GuildLifecycleService guildLifecycleService,
                                 GuildConfigService guildConfigService,
+                                SafeSearchConfigService safeSearchConfigService,
                                 TopicRegistry topicRegistry,
                                 MeterRegistry meterRegistry,
                                 EphemeralCommandRegistry ephemeralCommands,
@@ -81,6 +85,7 @@ public class DiscordEventListener extends ListenerAdapter {
         this.hookRegistry = hookRegistry;
         this.guildLifecycleService = guildLifecycleService;
         this.guildConfigService = guildConfigService;
+        this.safeSearchConfigService = safeSearchConfigService;
         this.topicRegistry = topicRegistry;
         this.meterRegistry = meterRegistry;
         this.ephemeralCommands = ephemeralCommands;
@@ -423,39 +428,66 @@ public class DiscordEventListener extends ListenerAdapter {
     private void handleConfigCommand(SlashCommandInteractionEvent event) {
         String guildId = event.getGuild().getId();
 
-        if (event.getMember() == null || !event.getMember().hasPermission(Permission.MANAGE_SERVER)) {
-            event.reply("Você precisa da permissão **Gerenciar Servidor** para usar este comando.")
+        if (event.getMember() == null || !event.getMember().hasPermission(Permission.ADMINISTRATOR)) {
+            event.reply("Acesso negado. Você precisa da permissão de **Administrador** para usar este comando.")
                     .setEphemeral(true).queue();
             meterRegistry.counter("discord.gateway.config.commands",
                     "success", "false", "reason", "unauthorized").increment();
             return;
         }
 
+        var safeSearchGuildOpt = event.getOption("safesearch_guild");
+        var safeSearchChannelOpt = event.getOption("safesearch_channel");
         var paramOption = event.getOption("parameter");
         var valueOption = event.getOption("value");
-        if (paramOption == null || valueOption == null) {
-            event.reply("Informe `parameter` e `value`.").setEphemeral(true).queue();
-            return;
-        }
-        String paramName = paramOption.getAsString();
-        String value = valueOption.getAsString();
 
-        GuildParam param;
-        try {
-            param = GuildParam.valueOf(paramName);
-        } catch (IllegalArgumentException e) {
-            event.reply("Parâmetro desconhecido: `" + paramName + "`.")
+        if (safeSearchGuildOpt == null && safeSearchChannelOpt == null && paramOption == null) {
+            event.reply("Informe ao menos um parâmetro para configurar (ex: `safesearch_guild`, `safesearch_channel` ou `parameter` + `value`).")
                     .setEphemeral(true).queue();
             return;
         }
 
-        var result = guildConfigService.upsert(guildId, param, value);
-        if (result.success() && param == GuildParam.ALLOWED_CHANNELS) {
-            eventRouter.evictChannelFilterCache(guildId);
+        List<String> messages = new ArrayList<>();
+
+        if (safeSearchGuildOpt != null) {
+            int level = safeSearchGuildOpt.getAsInt();
+            var res = safeSearchConfigService.setGuildSafeSearch(guildId, event.getUser().getId(), level);
+            messages.add(res.message());
+            meterRegistry.counter("discord.gateway.config.commands",
+                    "success", String.valueOf(res.success())).increment();
         }
-        event.reply(result.message()).setEphemeral(true).queue();
-        meterRegistry.counter("discord.gateway.config.commands",
-                "success", String.valueOf(result.success())).increment();
+
+        if (safeSearchChannelOpt != null) {
+            int level = safeSearchChannelOpt.getAsInt();
+            String channelId = event.getChannel().getId();
+            var res = safeSearchConfigService.setChannelSafeSearch(guildId, channelId, event.getUser().getId(), level);
+            messages.add(res.message());
+            meterRegistry.counter("discord.gateway.config.commands",
+                    "success", String.valueOf(res.success())).increment();
+        }
+
+        if (paramOption != null) {
+            if (valueOption == null) {
+                messages.add("Informe também o `value` para o parâmetro `" + paramOption.getAsString() + "`.");
+            } else {
+                String paramName = paramOption.getAsString();
+                String value = valueOption.getAsString();
+                try {
+                    GuildParam param = GuildParam.valueOf(paramName);
+                    var result = guildConfigService.upsert(guildId, param, value);
+                    if (result.success() && param == GuildParam.ALLOWED_CHANNELS) {
+                        eventRouter.evictChannelFilterCache(guildId);
+                    }
+                    messages.add(result.message());
+                    meterRegistry.counter("discord.gateway.config.commands",
+                            "success", String.valueOf(result.success())).increment();
+                } catch (IllegalArgumentException e) {
+                    messages.add("Parâmetro desconhecido: `" + paramName + "`.");
+                }
+            }
+        }
+
+        event.reply(String.join("\n", messages)).setEphemeral(true).queue();
     }
 
     private List<String> relayAttachments(List<Message.Attachment> attachments,

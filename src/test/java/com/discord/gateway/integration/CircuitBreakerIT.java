@@ -69,7 +69,9 @@ class CircuitBreakerIT {
         eventPublisher = new EventPublisher(kafkaTemplate, redpandaCb, topicRegistry, objectMapper, meterRegistry);
         eventRouter    = new EventRouter(topicRegistry, eventPublisher, guildConfigRepository, meterRegistry);
         listener       = new DiscordEventListener(eventRouter, inboundLog, attachmentRelay,
-                hookRegistry, guildLifecycle, guildConfigService, topicRegistry, meterRegistry,
+                hookRegistry, guildLifecycle, guildConfigService,
+                mock(com.discord.gateway.audit.SafeSearchConfigService.class),
+                topicRegistry, meterRegistry,
                 new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
                 EventSequencer.direct());
     }

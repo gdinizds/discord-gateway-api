@@ -17,6 +17,7 @@ import java.util.Set;
 public class KafkaTopicsConfig {
 
     static final String COMMANDS_TOPIC = "discord.gateway.commands";
+    public static final String CONFIG_UPDATED_TOPIC = "discord.events.config.updated";
 
     @Bean
     public KafkaAdmin.NewTopics gatewayTopics(TopicRegistry topicRegistry,
@@ -31,6 +32,7 @@ public class KafkaTopicsConfig {
         names.add(COMMANDS_TOPIC);
         names.add(ResponseDispatcher.RESPONSES_TOPIC);
         names.add(ResponseDispatcher.DLT_TOPIC);
+        names.add(CONFIG_UPDATED_TOPIC);
         return names.stream().map(name -> topic(name, partitions, replicas)).toList();
     }
 

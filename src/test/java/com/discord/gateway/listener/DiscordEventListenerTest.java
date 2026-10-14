@@ -48,6 +48,7 @@ public class DiscordEventListenerTest {
     @Mock private InteractionHookRegistry hookRegistry;
     @Mock private GuildLifecycleService guildLifecycleService;
     @Mock private GuildConfigService guildConfigService;
+    @Mock private com.discord.gateway.audit.SafeSearchConfigService safeSearchConfigService;
     @Mock private TopicRegistry topicRegistry;
     
     private MeterRegistry meterRegistry;
@@ -58,7 +59,8 @@ public class DiscordEventListenerTest {
         meterRegistry = new SimpleMeterRegistry();
         listener = new DiscordEventListener(
                 eventRouter, inboundEventLogService, attachmentRelayService, 
-                hookRegistry, guildLifecycleService, guildConfigService, 
+                hookRegistry, guildLifecycleService, guildConfigService,
+                safeSearchConfigService,
                 topicRegistry, meterRegistry,
                 new EphemeralCommandRegistry(mock(BotCommandRepository.class)),
                 EventSequencer.direct()

@@ -61,7 +61,10 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
                 CommandPrefix.class,
                 GuildParam.class,
                 GuildStatus.class,
-                MessageDirection.class
+                MessageDirection.class,
+                com.discord.gateway.domain.SafeSearchConfig.class,
+                com.discord.gateway.domain.ConfigAuditLog.class,
+                com.discord.gateway.model.ConfigUpdatedEvent.class
         );
 
         for (Class<?> type : types) {

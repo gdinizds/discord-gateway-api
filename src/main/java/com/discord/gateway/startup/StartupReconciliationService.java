@@ -14,7 +14,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
+
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 @Service
@@ -61,11 +65,22 @@ public class StartupReconciliationService extends ListenerAdapter {
                 .map(p -> new Command.Choice(p.name(), p.name()))
                 .toList();
 
-        jda.upsertCommand(Commands.slash("config", "Configura parâmetros do gateway para esta guilda")
+        var safeSearchChoices = List.of(
+                new Command.Choice("0 - Off (Sem filtro)", 0),
+                new Command.Choice("1 - Moderate (Filtro moderado)", 1),
+                new Command.Choice("2 - Strict (Filtro estrito / padrão)", 2)
+        );
+
+        jda.upsertCommand(Commands.slash("config", "Configura parâmetros do gateway e bots para esta guilda")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR))
                 .addOptions(
-                        new OptionData(OptionType.STRING, "parameter", "Parâmetro a configurar", true)
+                        new OptionData(OptionType.INTEGER, "safesearch_guild", "Nível de SafeSearch padrão para o servidor (0=Off, 1=Moderate, 2=Strict)", false)
+                                .addChoices(safeSearchChoices),
+                        new OptionData(OptionType.INTEGER, "safesearch_channel", "Nível de SafeSearch específico para este canal (0=Off, 1=Moderate, 2=Strict)", false)
+                                .addChoices(safeSearchChoices),
+                        new OptionData(OptionType.STRING, "parameter", "Parâmetro do gateway a configurar", false)
                                 .addChoices(choices),
-                        new OptionData(OptionType.STRING, "value", "Novo valor do parâmetro", true)
+                        new OptionData(OptionType.STRING, "value", "Novo valor do parâmetro do gateway", false)
                 )).queue(
                 cmd -> log.info("Registered /config command [id={}]", cmd.getId()),
                 err -> log.error("Failed to register /config command", err)

@@ -21,6 +21,7 @@ class KafkaTopicsConfigTest {
                 "discord.events.message.created",
                 "discord.events.interaction.command",
                 KafkaTopicsConfig.COMMANDS_TOPIC,
+                KafkaTopicsConfig.CONFIG_UPDATED_TOPIC,
                 ResponseDispatcher.RESPONSES_TOPIC,
                 ResponseDispatcher.DLT_TOPIC);
     }
