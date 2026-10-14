@@ -6,7 +6,7 @@ import com.discord.gateway.domain.ConfigAuditLog;
 import com.discord.gateway.domain.SafeSearchConfig;
 import com.discord.gateway.repository.ConfigAuditLogRepository;
 import com.discord.gateway.repository.SafeSearchConfigRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
