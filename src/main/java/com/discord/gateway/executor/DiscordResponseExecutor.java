@@ -75,11 +75,14 @@ public class DiscordResponseExecutor {
     private DispatchResult executeViaHook(OutboundResponsePayload payload) {
         var hookOpt = hookRegistry.getHook(payload.interactionToken());
         if (hookOpt.isEmpty()) {
+            if (payload.channelId() != null && payload.messageId() != null) {
+                return executeViaChannel(payload);
+            }
             log.warn("No hook registered for interactionToken [responseType={}]", payload.responseType());
             return DispatchResult.failure("no hook found for the provided interactionToken");
         }
         InteractionHook hook = hookOpt.get();
-        if (Boolean.TRUE.equals(payload.finished())) {
+        if (Boolean.TRUE.equals(payload.finished()) || "UPDATE_MESSAGE".equals(payload.responseType())) {
             hookRegistry.remove(payload.interactionToken());
         }
         return switch (payload.responseType()) {

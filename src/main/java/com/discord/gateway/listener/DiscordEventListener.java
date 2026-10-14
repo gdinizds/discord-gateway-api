@@ -34,6 +34,7 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.MessageUpdateEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.callbacks.IMessageEditCallback;
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -283,10 +284,17 @@ public class DiscordEventListener extends ListenerAdapter {
         String token = payload.interactionToken();
         var hook = event.getHook();
         hookRegistry.register(token, hook);
-        event.deferReply(ephemeral).queue(null, err -> {
-            log.warn("Failed to defer interaction [type={}]", payload.eventType(), err);
-            hookRegistry.remove(token);
-        });
+        if (event instanceof IMessageEditCallback editCallback) {
+            editCallback.deferEdit().queue(null, err -> {
+                log.warn("Failed to defer interaction [type={}]", payload.eventType(), err);
+                hookRegistry.remove(token);
+            });
+        } else {
+            event.deferReply(ephemeral).queue(null, err -> {
+                log.warn("Failed to defer interaction [type={}]", payload.eventType(), err);
+                hookRegistry.remove(token);
+            });
+        }
 
         eventRouter.route(payload, () -> {
             hookRegistry.remove(token);

@@ -21,6 +21,7 @@ import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
@@ -229,6 +230,40 @@ public class DiscordEventListenerTest {
         listener.onGuildLeave(event);
 
         verify(guildLifecycleService).onLeave("guild-1", "Guild 1");
+    }
+
+    @Test
+    void buttonInteractionCallsDeferEditAndRoutesEvent() {
+        var event = mock(ButtonInteractionEvent.class);
+        var guild = mock(Guild.class);
+        var user = mock(User.class);
+        var channel = mock(MessageChannelUnion.class);
+        var message = mock(Message.class);
+        var hook = mock(InteractionHook.class);
+        var editAction = mock(net.dv8tion.jda.api.requests.restaction.interactions.MessageEditCallbackAction.class);
+
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn("guild-1");
+        when(event.getChannel()).thenReturn(channel);
+        when(channel.getId()).thenReturn("channel-1");
+        when(event.getUser()).thenReturn(user);
+        when(user.getId()).thenReturn("user-1");
+        when(event.getMessage()).thenReturn(message);
+        when(message.getId()).thenReturn("msg-1");
+        when(event.getComponentId()).thenReturn("search:next");
+        when(event.getToken()).thenReturn("btn-token-1");
+        when(event.getHook()).thenReturn(hook);
+        when(event.deferEdit()).thenReturn(editAction);
+        when(eventRouter.isChannelAllowed("guild-1", "channel-1")).thenReturn(true);
+
+        listener.onButtonInteraction(event);
+
+        verify(event).deferEdit();
+        verify(editAction).queue(isNull(), any());
+        verify(hookRegistry).register("btn-token-1", hook);
+        var captor = ArgumentCaptor.forClass(DiscordEventPayload.class);
+        verify(eventRouter).route(captor.capture(), any(), isNull());
+        assertThat(captor.getValue().eventType()).isEqualTo("INTERACTION_BUTTON");
     }
 
     private SlashCommandInteractionEvent slashEvent() {
