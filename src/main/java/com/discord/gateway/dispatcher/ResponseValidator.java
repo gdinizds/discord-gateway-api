@@ -48,6 +48,7 @@ public class ResponseValidator {
             missing.add("content");
             missing.add("embeds");
             missing.add("attachments");
+            missing.add("components");
         }
 
         if (!missing.isEmpty()) {

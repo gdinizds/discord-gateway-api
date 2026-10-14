@@ -10,6 +10,11 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.interactions.components.ItemComponent;
+import net.dv8tion.jda.api.interactions.components.LayoutComponent;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.buttons.ButtonStyle;
 import net.dv8tion.jda.api.requests.RestAction;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
@@ -97,6 +102,9 @@ public class DiscordResponseExecutor {
         var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.addFiles(files);
 
+        var components = buildComponents(payload.components());
+        if (!components.isEmpty()) action.setComponents(components);
+
         return await(action, () -> hook.sendMessage("Ocorreu uma falha ao enviar a resposta.")
                 .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e)));
     }
@@ -109,6 +117,9 @@ public class DiscordResponseExecutor {
 
         var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.setFiles(files);
+
+        var components = buildComponents(payload.components());
+        if (!components.isEmpty()) action.setComponents(components);
 
         return await(action, () -> hook.sendMessage("Ocorreu uma falha ao editar a resposta.")
                 .setEphemeral(true).queue(null, e -> log.warn("Failed to send hook error fallback", e)));
@@ -139,6 +150,9 @@ public class DiscordResponseExecutor {
         var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.addFiles(files);
 
+        var components = buildComponents(payload.components());
+        if (!components.isEmpty()) action.setComponents(components);
+
         var result = await(action, () -> {
             var fallback = channel.sendMessage("Ocorreu uma falha ao enviar a resposta.");
             if (payload.messageId() != null) fallback.setMessageReference(payload.messageId()).failOnInvalidReply(false);
@@ -159,6 +173,9 @@ public class DiscordResponseExecutor {
 
         var files = openFiles(payload.attachments());
         if (!files.isEmpty()) action.setFiles(files);
+
+        var components = buildComponents(payload.components());
+        if (!components.isEmpty()) action.setComponents(components);
 
         return await(action, () -> channel.sendMessage("Ocorreu uma falha ao editar a resposta.")
                 .queue(null, e -> log.warn("Failed to send channel error fallback", e)));
@@ -238,5 +255,57 @@ public class DiscordResponseExecutor {
             }
         }
         return files;
+    }
+
+    private List<LayoutComponent> buildComponents(List<Map<String, Object>> componentMaps) {
+        if (componentMaps == null || componentMaps.isEmpty()) return List.of();
+        List<LayoutComponent> rows = new ArrayList<>();
+        for (var rowMap : componentMaps) {
+            if (rowMap.get("components") instanceof List<?> items) {
+                List<ItemComponent> buttons = new ArrayList<>();
+                for (var item : items) {
+                    if (item instanceof Map<?, ?> btn) {
+                        String id = btn.get("custom_id") instanceof String s ? s : (btn.get("id") instanceof String s2 ? s2 : null);
+                        String label = btn.get("label") instanceof String s ? s : "";
+                        String url = btn.get("url") instanceof String s ? s : null;
+                        boolean disabled = Boolean.TRUE.equals(btn.get("disabled"));
+                        Object styleObj = btn.get("style");
+
+                        Button button;
+                        if (url != null && !url.isBlank()) {
+                            button = Button.link(url, label.isBlank() ? "Link" : label);
+                        } else {
+                            ButtonStyle bs = ButtonStyle.PRIMARY;
+                            if (styleObj instanceof Number n) {
+                                bs = switch (n.intValue()) {
+                                    case 2 -> ButtonStyle.SECONDARY;
+                                    case 3 -> ButtonStyle.SUCCESS;
+                                    case 4 -> ButtonStyle.DANGER;
+                                    case 5 -> ButtonStyle.LINK;
+                                    default -> ButtonStyle.PRIMARY;
+                                };
+                            } else if (styleObj instanceof String s) {
+                                bs = switch (s.toUpperCase()) {
+                                    case "SECONDARY" -> ButtonStyle.SECONDARY;
+                                    case "SUCCESS" -> ButtonStyle.SUCCESS;
+                                    case "DANGER" -> ButtonStyle.DANGER;
+                                    case "LINK" -> ButtonStyle.LINK;
+                                    default -> ButtonStyle.PRIMARY;
+                                };
+                            }
+                            button = Button.of(bs, id != null ? id : "btn", label);
+                        }
+                        if (disabled) {
+                            button = button.asDisabled();
+                        }
+                        buttons.add(button);
+                    }
+                }
+                if (!buttons.isEmpty()) {
+                    rows.add(ActionRow.of(buttons));
+                }
+            }
+        }
+        return rows;
     }
 }

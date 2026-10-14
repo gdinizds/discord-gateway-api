@@ -15,12 +15,28 @@ public record OutboundResponsePayload(
         List<Map<String, Object>> embeds,
         List<OutboundAttachment> attachments,
         Boolean finished,
-        String correlationId
+        String correlationId,
+        List<Map<String, Object>> components
 ) {
+    public OutboundResponsePayload(
+            String responseType,
+            String interactionToken,
+            String messageId,
+            String channelId,
+            String content,
+            List<Map<String, Object>> embeds,
+            List<OutboundAttachment> attachments,
+            Boolean finished,
+            String correlationId
+    ) {
+        this(responseType, interactionToken, messageId, channelId, content, embeds, attachments, finished, correlationId, null);
+    }
+
     public boolean hasContent() {
         return (content != null && !content.isBlank())
                 || (embeds != null && !embeds.isEmpty())
-                || (attachments != null && !attachments.isEmpty());
+                || (attachments != null && !attachments.isEmpty())
+                || (components != null && !components.isEmpty());
     }
 
     public boolean isDeferred() {

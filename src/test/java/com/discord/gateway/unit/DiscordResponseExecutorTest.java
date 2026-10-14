@@ -81,6 +81,32 @@ class DiscordResponseExecutorTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void replyWithComponentsSetsActionRows() {
+        var msgAction = mock(WebhookMessageCreateAction.class);
+        when(hook.sendMessage(anyString())).thenReturn(msgAction);
+        var sent = message("sent-2", "chan-1");
+        when(msgAction.submit()).thenReturn(CompletableFuture.completedFuture(sent));
+
+        var componentMap = java.util.Map.<String, Object>of(
+                "type", 1,
+                "components", java.util.List.of(
+                        java.util.Map.of("type", 2, "custom_id", "btn_prev", "label", "Anterior", "style", "PRIMARY"),
+                        java.util.Map.of("type", 2, "custom_id", "btn_next", "label", "Próximo", "style", "PRIMARY")
+                )
+        );
+
+        var payload = new OutboundResponsePayload(
+                "REPLY", "token123", null, null, "Resultados", null, null, null, "corr-1",
+                java.util.List.of(componentMap));
+        var result = executor.execute(payload);
+
+        verify(hook).sendMessage("Resultados");
+        verify(msgAction).setComponents(any(java.util.Collection.class));
+        assertThat(result.success()).isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void ephemeralReplyCallsSendMessageWithEphemeralFlag() {
         var msgAction = mock(WebhookMessageCreateAction.class);
         when(hook.sendMessage(anyString())).thenReturn(msgAction);
