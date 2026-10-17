@@ -107,9 +107,10 @@ public class ResponseDispatcher {
             record.headers().add(new RecordHeader("dlt-reason", bytes(reason)));
             if (detail != null) record.headers().add(new RecordHeader("dlt-detail", bytes(detail)));
             record.headers().add(new RecordHeader("dlt-source-topic", bytes(RESPONSES_TOPIC)));
-            kafkaTemplate.send(record).whenComplete((r, e) -> {
-                if (e != null) log.error("Failed to dead-letter response [reason={}]", reason, e);
-            });
+            var future = kafkaTemplate.send(record);
+            if (future != null) {
+                future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            }
             meterRegistry.counter("discord.gateway.dispatch.dead_lettered", "reason", reason).increment();
         } catch (Exception e) {
             log.error("Failed to dead-letter response [reason={}]", reason, e);

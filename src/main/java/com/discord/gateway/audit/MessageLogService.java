@@ -17,17 +17,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @Service
 public class MessageLogService {
 
     private static final Logger log = LoggerFactory.getLogger(MessageLogService.class);
+    static final int DEFAULT_MAX_IN_FLIGHT = 512;
 
     private final MessageLogRepository messageLogRepository;
     private final CircuitBreaker postgresqlCb;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
     private final ExecutorService auditExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final Semaphore inFlight = new Semaphore(DEFAULT_MAX_IN_FLIGHT);
 
     public MessageLogService(MessageLogRepository messageLogRepository,
                              CircuitBreaker postgresqlCircuitBreaker,
@@ -41,7 +44,23 @@ public class MessageLogService {
 
     public void logOutbound(OutboundResponsePayload payload, DispatchResult result,
                             String guildId, String userId) {
-        auditExecutor.submit(() -> doLogOutbound(payload, result, guildId, userId));
+        if (!inFlight.tryAcquire()) {
+            meterRegistry.counter("discord.gateway.audit.dropped", "direction", "OUTBOUND").increment();
+            log.warn("Outbound audit backlog full, log dropped [responseType={}]", payload.responseType());
+            return;
+        }
+        try {
+            auditExecutor.submit(() -> {
+                try {
+                    doLogOutbound(payload, result, guildId, userId);
+                } finally {
+                    inFlight.release();
+                }
+            });
+        } catch (RuntimeException e) {
+            inFlight.release();
+            throw e;
+        }
     }
 
     private void doLogOutbound(OutboundResponsePayload payload, DispatchResult result,
@@ -52,7 +71,7 @@ public class MessageLogService {
                     : UUID.randomUUID();
 
             var auditPayload = objectMapper.writeValueAsString(Map.of(
-                    "payload", payload,
+                    "payload", payload.withMaskedToken(),
                     "result", Map.of(
                             "success", result.success(),
                             "discordMessageId", result.discordMessageId() != null ? result.discordMessageId() : "",

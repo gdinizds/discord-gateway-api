@@ -96,11 +96,19 @@ public class BotCommandConsumer {
 
         if (payload.parameters() != null) {
             for (var param : payload.parameters()) {
-                String type = String.valueOf(param.getOrDefault("type", "STRING"));
+                String type = String.valueOf(param.getOrDefault("type", "STRING")).toUpperCase(java.util.Locale.ROOT);
+                OptionType optType;
+                try {
+                    optType = OptionType.valueOf(type);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Unknown OptionType '{}' for param in command '{}', defaulting to STRING",
+                            type, payload.name());
+                    optType = OptionType.STRING;
+                }
                 String pName = String.valueOf(param.get("name"));
                 String pDesc = String.valueOf(param.getOrDefault("description", "-"));
                 boolean required = Boolean.parseBoolean(String.valueOf(param.getOrDefault("required", "false")));
-                var opt = new OptionData(OptionType.valueOf(type), pName, pDesc, required);
+                var opt = new OptionData(optType, pName, pDesc, required);
                 slash.addOptions(opt);
             }
         }

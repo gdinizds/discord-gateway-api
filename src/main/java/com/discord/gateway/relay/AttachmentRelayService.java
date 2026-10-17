@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @Service
 public class AttachmentRelayService {
@@ -76,6 +77,8 @@ public class AttachmentRelayService {
         return futures.stream().map(CompletableFuture::join).toList();
     }
 
+    private final Semaphore relaySemaphore = new Semaphore(32);
+
     @PreDestroy
     public void close() {
         executor.close();
@@ -90,7 +93,19 @@ public class AttachmentRelayService {
                     "Attachment '%s' size %d exceeds limit %d".formatted(filename, sizeBytes, maxSize));
         }
 
-        String key = guildId + "/" + messageId + "/" + filename;
+        String safeFilename = sanitizeFilename(filename);
+        String key = guildId + "/" + messageId + "/" + safeFilename;
+
+        try {
+            if (!relaySemaphore.tryAcquire(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "relay_busy").increment();
+                throw new AttachmentRelayException("Attachment relay concurrency limit reached for: " + filename);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AttachmentRelayException("Attachment relay interrupted for: " + filename, e);
+        }
+
         try {
             garageCb.executeCallable(() -> {
                 try (var stream = downloader.download(discordUrl)) {
@@ -99,7 +114,12 @@ public class AttachmentRelayService {
                                 PutObjectRequest.builder().bucket(bucket).key(key).contentLength(sizeBytes).build(),
                                 RequestBody.fromInputStream(stream, sizeBytes));
                     } else {
-                        byte[] bytes = stream.readAllBytes();
+                        byte[] bytes = stream.readNBytes((int) maxSize + 1);
+                        if (bytes.length > maxSize) {
+                            meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "size_limit").increment();
+                            throw new AttachmentRelayException(
+                                    "Attachment '%s' exceeded limit %d".formatted(filename, maxSize));
+                        }
                         s3Client.putObject(
                                 PutObjectRequest.builder().bucket(bucket).key(key).contentLength((long) bytes.length).build(),
                                 RequestBody.fromBytes(bytes));
@@ -109,10 +129,29 @@ public class AttachmentRelayService {
             });
             meterRegistry.counter("discord.gateway.attachments.relayed").increment();
             return endpoint + "/" + bucket + "/" + key;
+        } catch (AttachmentRelayException e) {
+            throw e;
         } catch (Exception e) {
+            if (e.getCause() instanceof AttachmentRelayException are) {
+                throw are;
+            }
             meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "relay_failure").increment();
             throw new AttachmentRelayException("Failed to relay attachment: " + filename, e);
+        } finally {
+            relaySemaphore.release();
         }
+    }
+
+    static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "attachment";
+        }
+        int lastSlash = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+        if (lastSlash >= 0) {
+            filename = filename.substring(lastSlash + 1);
+        }
+        filename = filename.replace("..", "_").strip();
+        return filename.isEmpty() ? "attachment" : filename;
     }
 
     private long resolveMaxSize(String guildId, long tierMaxSizeBytes) {

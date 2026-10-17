@@ -12,10 +12,10 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew nativeCompile --no-daemon 
 FROM debian:bookworm-slim AS native
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 zlib1g \
     && rm -rf /var/lib/apt/lists/*
-RUN groupadd -r app && useradd -r -g app app
+RUN groupadd -g 10001 app && useradd -u 10001 -g 10001 -r -s /bin/false app
 WORKDIR /app
-COPY --chown=app:app --from=native-builder /app/build/native/nativeCompile/discord-event-gateway /app/discord-event-gateway
-USER app
+COPY --chown=10001:10001 --from=native-builder /app/build/native/nativeCompile/discord-event-gateway /app/discord-event-gateway
+USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["/app/discord-event-gateway", "-XX:MaximumHeapSizePercent=50"]
 

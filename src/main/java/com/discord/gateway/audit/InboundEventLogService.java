@@ -84,7 +84,7 @@ public class InboundEventLogService {
 
     private void doLog(DiscordEventPayload payload) {
         try {
-            var payloadJson = objectMapper.writeValueAsString(payload);
+            var payloadJson = objectMapper.writeValueAsString(payload.withMaskedToken());
             var correlationId = UUID.fromString(payload.correlationId());
             var entry = new MessageLog(
                     correlationId, payload.version(), MessageDirection.INBOUND,

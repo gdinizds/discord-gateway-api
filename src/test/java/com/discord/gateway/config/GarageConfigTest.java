@@ -46,6 +46,7 @@ public class GarageConfigTest {
     @BeforeEach
     void setUp() {
         this.garageConfig = new GarageConfig();
+        this.garageConfig.setBucket("my-bucket");
     }
 
     @Test
@@ -171,6 +172,7 @@ public class GarageConfigTest {
 
     @Test
     void urlMentioningDiscordInPathIsResolvedAgainstS3() throws Exception {
+        garageConfig.setBucket("discord-attachments");
         AttachmentDownloader downloader = garageConfig.attachmentDownloader(s3Client);
         ResponseInputStream<GetObjectResponse> mockResponse = mock(ResponseInputStream.class);
         when(s3Client.getObject(any(Consumer.class))).thenReturn(mockResponse);
@@ -186,5 +188,21 @@ public class GarageConfigTest {
         captor.getValue().accept(builder);
         verify(builder).bucket("discord-attachments");
         verify(builder).key("cdn.discordapp.com.png");
+    }
+
+    @Test
+    void shouldRejectUnauthorizedBucket() {
+        AttachmentDownloader downloader = garageConfig.attachmentDownloader(s3Client);
+        String url = "http://my-s3.com/unauthorized-bucket/key.png";
+        IOException exception = assertThrows(IOException.class, () -> downloader.download(url));
+        assertThat(exception.getMessage()).contains("Unauthorized bucket");
+    }
+
+    @Test
+    void shouldRejectPathTraversalInKey() {
+        AttachmentDownloader downloader = garageConfig.attachmentDownloader(s3Client);
+        String url = "http://my-s3.com/my-bucket/../secret.txt";
+        IOException exception = assertThrows(IOException.class, () -> downloader.download(url));
+        assertThat(exception.getMessage()).contains("path traversal");
     }
 }

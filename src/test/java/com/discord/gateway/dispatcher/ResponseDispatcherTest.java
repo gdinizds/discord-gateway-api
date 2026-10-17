@@ -55,7 +55,7 @@ class ResponseDispatcherTest {
     @Test
     void discordFailureIsDeadLetteredWithReason() {
         when(executor.execute(any())).thenReturn(DispatchResult.failure("Unknown Channel"));
-        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(new CompletableFuture<>());
+        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
 
         dispatcher.onResponse(reply(), "guild-1", ack);
 
@@ -70,7 +70,7 @@ class ResponseDispatcherTest {
 
     @Test
     void invalidPayloadIsDeadLetteredAsValidation() {
-        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(new CompletableFuture<>());
+        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
 
         dispatcher.onResponse("{\"responseType\":\"NOPE\",\"interactionToken\":\"t\"}", null, ack);
 
@@ -81,7 +81,7 @@ class ResponseDispatcherTest {
 
     @Test
     void unparseablePayloadIsDeadLettered() {
-        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(new CompletableFuture<>());
+        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
 
         dispatcher.onResponse("not json", null, ack);
 

@@ -18,4 +18,13 @@ public record DiscordEventPayload(
         int version,
         List<String> attachments,
         Map<String, Object> rawPayload
-) {}
+) {
+    public DiscordEventPayload withMaskedToken() {
+        if (interactionToken == null || interactionToken.isBlank()) {
+            return this;
+        }
+        return new DiscordEventPayload(
+                eventType, correlationId, priority, guild, channelId, user,
+                "[REDACTED]", messageId, version, attachments, rawPayload);
+    }
+}

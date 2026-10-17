@@ -37,6 +37,15 @@ dependencyManagement {
     }
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+        if (details.requested.group == 'com.google.protobuf' && details.requested.name == 'protobuf-java') {
+            details.useVersion '3.25.5'
+            details.because 'Remediate CVE-2024-7254 and CVE-2024-5853'
+        }
+    }
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'

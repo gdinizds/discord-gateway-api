@@ -190,4 +190,31 @@ class AttachmentSizeLimitTest {
                 .isInstanceOf(AttachmentRelayException.class)
                 .hasMessageContaining("exceeds");
     }
+
+    @Test
+    void unmeasuredStreamExceedingLimitIsRejected() {
+        // Stream of 200 bytes with sizeBytes = 0 and max 100 bytes
+        var customRelay = new AttachmentRelayService(
+                url -> new ByteArrayInputStream(new byte[200]),
+                s3Client,
+                CircuitBreaker.ofDefaults("garage-test"),
+                guildConfigRepository,
+                new SimpleMeterRegistry(),
+                100L,
+                "discord-attachments",
+                "http://garage");
+
+        assertThatThrownBy(() ->
+                customRelay.relay("http://cdn.discord.com/stream.bin", "stream.bin", 0L, "guild-1", "msg-11", 100L))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("exceeded limit");
+    }
+
+    @Test
+    void pathTraversalInFilenameIsSanitized() {
+        var captor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        relayService.relay("http://cdn.discord.com/file.txt", "../../etc/passwd", 5L, "guild-1", "msg-12", 0L);
+        verify(s3Client).putObject(captor.capture(), any(RequestBody.class));
+        assertThat(captor.getValue().key()).isEqualTo("guild-1/msg-12/passwd");
+    }
 }

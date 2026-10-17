@@ -42,4 +42,13 @@ public record OutboundResponsePayload(
     public boolean isDeferred() {
         return "DEFERRED_REPLY".equals(responseType) || "DEFERRED_UPDATE".equals(responseType);
     }
+
+    public OutboundResponsePayload withMaskedToken() {
+        if (interactionToken == null || interactionToken.isBlank()) {
+            return this;
+        }
+        return new OutboundResponsePayload(
+                responseType, "[REDACTED]", messageId, channelId, content,
+                embeds, attachments, finished, correlationId, components);
+    }
 }
