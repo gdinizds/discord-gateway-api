@@ -11,6 +11,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class SafeSearchConfigService {
 
     public record SafeSearchResult(boolean success, String message) {}
 
+    @Autowired
     public SafeSearchConfigService(SafeSearchConfigRepository configRepository,
                                   ConfigAuditLogRepository auditLogRepository,
                                   KafkaTemplate<String, String> kafkaTemplate,

@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -36,6 +37,7 @@ public class AttachmentRelayService {
     private final String endpoint;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
+    @Autowired
     public AttachmentRelayService(AttachmentDownloader attachmentDownloader,
                                   S3Client s3Client,
                                   CircuitBreaker garageCircuitBreaker,

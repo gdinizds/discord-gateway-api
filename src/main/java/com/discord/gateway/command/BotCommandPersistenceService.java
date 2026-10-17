@@ -11,6 +11,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ public class BotCommandPersistenceService {
     private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public BotCommandPersistenceService(BotCommandRepository commandRepository,
                                         BotCommandLogRepository logRepository,
                                         CircuitBreaker postgresqlCircuitBreaker,
