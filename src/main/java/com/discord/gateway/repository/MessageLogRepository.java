@@ -13,6 +13,7 @@ public interface MessageLogRepository extends JpaRepository<MessageLog, Long> {
             SELECT correlation_id, MAX(version) AS max_version
             FROM gateway.message_log
             WHERE discord_message_id = :messageId
+              AND recorded_at >= CURRENT_TIMESTAMP - INTERVAL '7' DAY
             GROUP BY correlation_id
             LIMIT 1
             """, nativeQuery = true)

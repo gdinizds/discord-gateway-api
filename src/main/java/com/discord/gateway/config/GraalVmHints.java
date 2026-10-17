@@ -82,29 +82,12 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
 
         String[] packagePatterns = {
                 "classpath*:com/discord/gateway/**/*.class",
-                "classpath*:org/flywaydb/**/*.class",
-                "classpath*:org/hibernate/**/*_$*.class",
-                "classpath*:org/hibernate/event/**/*.class",
-                "classpath*:org/hibernate/boot/models/**/*.class",
-                "classpath*:org/hibernate/annotations/**/*.class",
-                "classpath*:org/hibernate/generator/**/*.class",
-                "classpath*:org/hibernate/id/**/*.class",
-                "classpath*:org/hibernate/persister/**/*.class",
-                "classpath*:org/hibernate/metamodel/**/*.class",
-                "classpath*:org/hibernate/property/**/*.class",
-                "classpath*:org/hibernate/tuple/**/*.class",
-                "classpath*:org/hibernate/dialect/**/*.class",
-                "classpath*:jakarta/persistence/**/*.class",
-                "classpath*:org/jboss/**/*_$*.class",
-                "classpath*:org/springframework/cloud/consul/model/**/*.class",
-                "classpath*:org/springframework/dao/**/*.class",
                 "classpath*:com/ecwid/consul/**/*.class",
                 "classpath*:net/jpountz/**/*.class",
                 "classpath*:net/dv8tion/jda/**/*.class",
                 "classpath*:com/neovisionaries/ws/**/*.class",
                 "classpath*:com/fasterxml/uuid/**/*.class",
-                "classpath*:io/github/resilience4j/**/*.class",
-                "classpath*:org/apache/kafka/common/serialization/**/*.class"
+                "classpath*:io/github/resilience4j/**/*.class"
         };
         for (String pattern : packagePatterns) {
             registerClassesByPattern(hints, cl, pattern);
@@ -113,10 +96,7 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
         hints.resources().registerPattern("db/migration/**");
         hints.resources().registerPattern("db/migration/*/*.sql");
         hints.resources().registerPattern("org/flywaydb/core/internal/version.txt");
-        hints.resources().registerPattern("org/flywaydb/**/*.sql");
         hints.resources().registerPattern("META-INF/services/org.flywaydb.*");
-        hints.resources().registerPattern("org/hibernate/**/*.i18n.properties");
-        hints.resources().registerPattern("org/jboss/**/*.i18n.properties");
         hints.resources().registerPattern("net/jpountz/util/**");
     }
 

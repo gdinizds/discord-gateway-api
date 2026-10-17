@@ -68,8 +68,8 @@ public class EventPublisher {
                     payload.eventType(), topic, payload.correlationId());
             return true;
         } catch (Exception e) {
-            log.error("Failed to publish event [type={}, topic={}]: {}",
-                    payload.eventType(), topic, e.getMessage());
+            log.error("Failed to publish event [type={}, topic={}]",
+                    payload.eventType(), topic, e);
             meterRegistry.counter("discord.gateway.events.discarded",
                     "type", payload.eventType(), "reason", "publish_failure").increment();
             if (topicRegistry.isInteraction(payload.eventType()) && ephemeralFallback != null) {

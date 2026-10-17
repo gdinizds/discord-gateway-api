@@ -8,7 +8,11 @@ import org.springframework.stereotype.Component;
 @Component("discord-websocket")
 public class DiscordHealthIndicator implements HealthIndicator {
 
+    private static final long CACHE_TTL_MS = 5_000;
+
     private final JDA jda;
+    private volatile int cachedGuildCount = 0;
+    private volatile long lastGuildCountCheck = 0;
 
     public DiscordHealthIndicator(JDA jda) {
         this.jda = jda;
@@ -20,11 +24,20 @@ public class DiscordHealthIndicator implements HealthIndicator {
         if (status == JDA.Status.CONNECTED) {
             return Health.up()
                     .withDetail("status", status.name())
-                    .withDetail("guilds", jda.getGuilds().size())
+                    .withDetail("guilds", getCachedGuildCount())
                     .build();
         }
         return Health.down()
                 .withDetail("status", status.name())
                 .build();
+    }
+
+    private int getCachedGuildCount() {
+        long now = System.currentTimeMillis();
+        if (now - lastGuildCountCheck > CACHE_TTL_MS) {
+            cachedGuildCount = jda.getGuilds().size();
+            lastGuildCountCheck = now;
+        }
+        return cachedGuildCount;
     }
 }

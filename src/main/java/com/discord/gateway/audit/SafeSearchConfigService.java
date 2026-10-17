@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -30,6 +31,7 @@ public class SafeSearchConfigService {
     private final ObjectMapper objectMapper;
     private final CircuitBreaker postgresqlCb;
     private final MeterRegistry meterRegistry;
+    private final TransactionOperations transactionOperations;
 
     public record SafeSearchResult(boolean success, String message) {}
 
@@ -38,15 +40,27 @@ public class SafeSearchConfigService {
                                   KafkaTemplate<String, String> kafkaTemplate,
                                   ObjectMapper objectMapper,
                                   CircuitBreaker postgresqlCircuitBreaker,
-                                  MeterRegistry meterRegistry) {
+                                  MeterRegistry meterRegistry,
+                                  TransactionOperations transactionOperations) {
         this.configRepository = configRepository;
         this.auditLogRepository = auditLogRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
         this.postgresqlCb = postgresqlCircuitBreaker;
         this.meterRegistry = meterRegistry;
+        this.transactionOperations = transactionOperations != null ? transactionOperations : TransactionOperations.withoutTransaction();
     }
 
+    public SafeSearchConfigService(SafeSearchConfigRepository configRepository,
+                                  ConfigAuditLogRepository auditLogRepository,
+                                  KafkaTemplate<String, String> kafkaTemplate,
+                                  ObjectMapper objectMapper,
+                                  CircuitBreaker postgresqlCircuitBreaker,
+                                  MeterRegistry meterRegistry) {
+        this(configRepository, auditLogRepository, kafkaTemplate, objectMapper, postgresqlCircuitBreaker, meterRegistry, TransactionOperations.withoutTransaction());
+    }
+
+    @Transactional(readOnly = true)
     public Optional<Integer> getGuildSafeSearch(String guildId) {
         try {
             return configRepository.findByGuildIdAndChannelId(guildId, "")
@@ -57,6 +71,7 @@ public class SafeSearchConfigService {
         }
     }
 
+    @Transactional(readOnly = true)
     public Optional<Integer> getChannelSafeSearch(String guildId, String channelId) {
         try {
             return configRepository.findByGuildIdAndChannelId(guildId, channelId)
@@ -67,7 +82,6 @@ public class SafeSearchConfigService {
         }
     }
 
-    @Transactional
     public SafeSearchResult setGuildSafeSearch(String guildId, String userId, int level) {
         if (level < 0 || level > 2) {
             return new SafeSearchResult(false, "Nível de SafeSearch inválido. Valores aceitos: 0 (Off), 1 (Moderate), 2 (Strict).");
@@ -77,15 +91,17 @@ public class SafeSearchConfigService {
             var existing = configRepository.findByGuildIdAndChannelId(guildId, "");
             String oldValue = existing.map(c -> String.valueOf(c.getLevel())).orElse(null);
 
-            postgresqlCb.executeRunnable(() -> {
-                if (existing.isPresent()) {
-                    existing.get().update(level, userId);
-                } else {
-                    configRepository.save(new SafeSearchConfig(guildId, "", level, userId));
-                }
-                auditLogRepository.save(new ConfigAuditLog(
-                        guildId, null, userId, "safesearch_guild", oldValue, String.valueOf(level)
-                ));
+            transactionOperations.executeWithoutResult(status -> {
+                postgresqlCb.executeRunnable(() -> {
+                    if (existing.isPresent()) {
+                        existing.get().update(level, userId);
+                    } else {
+                        configRepository.save(new SafeSearchConfig(guildId, "", level, userId));
+                    }
+                    auditLogRepository.save(new ConfigAuditLog(
+                            guildId, null, userId, "safesearch_guild", oldValue, String.valueOf(level)
+                    ));
+                });
             });
 
             publishEvent(guildId, null, userId, "safesearch_guild", oldValue, String.valueOf(level), level);
@@ -99,7 +115,6 @@ public class SafeSearchConfigService {
         }
     }
 
-    @Transactional
     public SafeSearchResult setChannelSafeSearch(String guildId, String channelId, String userId, int level) {
         if (level < 0 || level > 2) {
             return new SafeSearchResult(false, "Nível de SafeSearch inválido. Valores aceitos: 0 (Off), 1 (Moderate), 2 (Strict).");
@@ -109,15 +124,17 @@ public class SafeSearchConfigService {
             var existing = configRepository.findByGuildIdAndChannelId(guildId, channelId);
             String oldValue = existing.map(c -> String.valueOf(c.getLevel())).orElse(null);
 
-            postgresqlCb.executeRunnable(() -> {
-                if (existing.isPresent()) {
-                    existing.get().update(level, userId);
-                } else {
-                    configRepository.save(new SafeSearchConfig(guildId, channelId, level, userId));
-                }
-                auditLogRepository.save(new ConfigAuditLog(
-                        guildId, channelId, userId, "safesearch_channel", oldValue, String.valueOf(level)
-                ));
+            transactionOperations.executeWithoutResult(status -> {
+                postgresqlCb.executeRunnable(() -> {
+                    if (existing.isPresent()) {
+                        existing.get().update(level, userId);
+                    } else {
+                        configRepository.save(new SafeSearchConfig(guildId, channelId, level, userId));
+                    }
+                    auditLogRepository.save(new ConfigAuditLog(
+                            guildId, channelId, userId, "safesearch_channel", oldValue, String.valueOf(level)
+                    ));
+                });
             });
 
             publishEvent(guildId, channelId, userId, "safesearch_channel", oldValue, String.valueOf(level), level);

@@ -21,7 +21,6 @@ public record BotCommandPayload(
         this(guildId, prefix, name, description, parameters, isDeleted, null);
     }
 
-    /** Whether the gateway should defer this slash command ephemerally. Absent means false. */
     public boolean isEphemeral() {
         return Boolean.TRUE.equals(ephemeral);
     }

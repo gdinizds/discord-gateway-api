@@ -39,7 +39,12 @@ public class KafkaTopicsConfig {
     private static NewTopic topic(String name, int partitions, int replicas) {
         var builder = TopicBuilder.name(name);
         if (partitions > 0) builder.partitions(partitions);
-        if (replicas > 0) builder.replicas(replicas);
+        if (replicas > 0) {
+            builder.replicas(replicas);
+            if (replicas >= 2) {
+                builder.config("min.insync.replicas", "2");
+            }
+        }
         return builder.build();
     }
 }

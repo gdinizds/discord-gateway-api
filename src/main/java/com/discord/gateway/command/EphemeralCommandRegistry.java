@@ -10,13 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * In-memory set of slash commands that must be deferred ephemerally.
- * <p>
- * Loaded once from the database before JDA starts (the listener depends on this bean,
- * and the JDA bean depends on the listener), then kept current by {@link BotCommandConsumer}.
- * Lookups stay off the database, like the channel filter cache.
- */
 @Component
 public class EphemeralCommandRegistry {
 
@@ -51,7 +44,6 @@ public class EphemeralCommandRegistry {
         }
     }
 
-    /** A guild-specific registration wins; otherwise the global registration of the same name applies. */
     public boolean isEphemeral(String guildId, String name) {
         return keys.contains(key(guildId, name)) || keys.contains(key(GLOBAL, name));
     }

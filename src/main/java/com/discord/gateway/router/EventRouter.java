@@ -21,6 +21,7 @@ public class EventRouter {
 
     private static final Logger log = LoggerFactory.getLogger(EventRouter.class);
     private static final long CACHE_TTL_MS = 60_000;
+    private static final int MAX_CACHE_ENTRIES = 10_000;
 
     private record ChannelFilter(boolean allowAll, Set<String> allowedChannels, long expiryTimeMs) {}
 
@@ -100,6 +101,9 @@ public class EventRouter {
                                 .collect(Collectors.toSet());
                         filter = new ChannelFilter(false, set, now + CACHE_TTL_MS);
                     }
+                }
+                if (channelFilterCache.size() >= MAX_CACHE_ENTRIES) {
+                    channelFilterCache.clear();
                 }
                 channelFilterCache.put(guildId, filter);
             }

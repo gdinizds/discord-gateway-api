@@ -1,6 +1,6 @@
 package com.discord.gateway.relay;
 
-import com.discord.gateway.domain.GuildParam;
+import com.discord.gateway.audit.GuildConfigService;
 import com.discord.gateway.model.AttachmentRelayException;
 import com.discord.gateway.repository.GuildConfigRepository;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -29,7 +29,7 @@ public class AttachmentRelayService {
     private final AttachmentDownloader downloader;
     private final S3Client s3Client;
     private final CircuitBreaker garageCb;
-    private final GuildConfigRepository guildConfigRepository;
+    private final GuildConfigService guildConfigService;
     private final MeterRegistry meterRegistry;
     private final long defaultMaxSizeBytes;
     private final String bucket;
@@ -39,7 +39,7 @@ public class AttachmentRelayService {
     public AttachmentRelayService(AttachmentDownloader attachmentDownloader,
                                   S3Client s3Client,
                                   CircuitBreaker garageCircuitBreaker,
-                                  GuildConfigRepository guildConfigRepository,
+                                  GuildConfigService guildConfigService,
                                   MeterRegistry meterRegistry,
                                   @Value("${gateway.attachments.max-size-bytes:26214400}") long defaultMaxSizeBytes,
                                   @Value("${gateway.garage.bucket:discord-attachments}") String bucket,
@@ -47,11 +47,24 @@ public class AttachmentRelayService {
         this.downloader = attachmentDownloader;
         this.s3Client = s3Client;
         this.garageCb = garageCircuitBreaker;
-        this.guildConfigRepository = guildConfigRepository;
+        this.guildConfigService = guildConfigService;
         this.meterRegistry = meterRegistry;
         this.defaultMaxSizeBytes = defaultMaxSizeBytes;
         this.bucket = bucket;
         this.endpoint = endpoint;
+    }
+
+    public AttachmentRelayService(AttachmentDownloader attachmentDownloader,
+                                  S3Client s3Client,
+                                  CircuitBreaker garageCircuitBreaker,
+                                  GuildConfigRepository guildConfigRepository,
+                                  MeterRegistry meterRegistry,
+                                  long defaultMaxSizeBytes,
+                                  String bucket,
+                                  String endpoint) {
+        this(attachmentDownloader, s3Client, garageCircuitBreaker,
+             new GuildConfigService(guildConfigRepository, garageCircuitBreaker, meterRegistry),
+             meterRegistry, defaultMaxSizeBytes, bucket, endpoint);
     }
 
     public record Source(String url, String fileName, long sizeBytes) {}
@@ -156,15 +169,7 @@ public class AttachmentRelayService {
 
     private long resolveMaxSize(String guildId, long tierMaxSizeBytes) {
         long fallback = tierMaxSizeBytes > 0 ? tierMaxSizeBytes : defaultMaxSizeBytes;
-        if (guildId == null) return fallback;
-        try {
-            return guildConfigRepository
-                    .findByGuildIdAndParam(guildId, GuildParam.MAX_ATTACHMENT_SIZE_BYTES)
-                    .map(c -> Long.parseLong(c.getValue()))
-                    .orElse(fallback);
-        } catch (Exception e) {
-            log.warn("Failed to resolve guild-specific max size for guild {}, using tier/default", guildId, e);
-            return fallback;
-        }
+        if (guildConfigService == null) return fallback;
+        return guildConfigService.resolveMaxAttachmentSize(guildId, fallback);
     }
 }

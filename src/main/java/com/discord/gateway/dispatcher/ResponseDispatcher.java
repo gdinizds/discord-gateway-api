@@ -70,8 +70,6 @@ public class ResponseDispatcher {
             String resultTag = result.success() ? "success" : "discord_error";
             meterRegistry.counter("discord.gateway.dispatch.total",
                     "type", payload.responseType(), "result", resultTag).increment();
-            sample.stop(meterRegistry.timer("discord.gateway.dispatch.latency",
-                    "type", payload.responseType()));
 
             if (!result.success()) {
                 log.error("Dispatch failed [responseType={}, error={}]",
@@ -96,6 +94,8 @@ public class ResponseDispatcher {
             deadLetter(key, message, payload == null ? "unparseable" : "unexpected", e.getMessage());
 
         } finally {
+            sample.stop(meterRegistry.timer("discord.gateway.dispatch.latency",
+                    "type", payload != null && payload.responseType() != null ? payload.responseType() : "unknown"));
             acknowledgment.acknowledge();
             MDC.clear();
         }

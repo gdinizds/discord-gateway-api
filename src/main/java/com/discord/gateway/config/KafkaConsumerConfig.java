@@ -19,7 +19,7 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    @Value("${spring.kafka.listener.concurrency:4}")
+    @Value("${spring.kafka.listener.concurrency:3}")
     private int concurrency;
 
     @Bean
@@ -31,7 +31,10 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 100);
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300_000);
+        props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG,
+                java.util.List.of(org.apache.kafka.clients.consumer.CooperativeStickyAssignor.class.getName()));
         props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1024);
         props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 500);
         return new DefaultKafkaConsumerFactory<>(props);

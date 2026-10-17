@@ -135,7 +135,7 @@ public class BotCommandConsumer {
         try {
             return objectMapper.readValue(message, BotCommandPayload.class);
         } catch (Exception e) {
-            log.warn("Failed to parse bot command payload — discarding [error={}]", e.getMessage());
+            log.warn("Failed to parse bot command payload — discarding", e);
             return null;
         }
     }

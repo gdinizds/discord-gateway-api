@@ -13,27 +13,36 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class BotCommandPersistenceService {
 
     private static final Logger log = LoggerFactory.getLogger(BotCommandPersistenceService.class);
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final BotCommandRepository commandRepository;
     private final BotCommandLogRepository logRepository;
     private final CircuitBreaker postgresqlCb;
     private final MeterRegistry meterRegistry;
+    private final ObjectMapper objectMapper;
+
+    public BotCommandPersistenceService(BotCommandRepository commandRepository,
+                                        BotCommandLogRepository logRepository,
+                                        CircuitBreaker postgresqlCircuitBreaker,
+                                        MeterRegistry meterRegistry,
+                                        ObjectMapper objectMapper) {
+        this.commandRepository = commandRepository;
+        this.logRepository = logRepository;
+        this.postgresqlCb = postgresqlCircuitBreaker;
+        this.meterRegistry = meterRegistry;
+        this.objectMapper = objectMapper;
+    }
 
     public BotCommandPersistenceService(BotCommandRepository commandRepository,
                                         BotCommandLogRepository logRepository,
                                         CircuitBreaker postgresqlCircuitBreaker,
                                         MeterRegistry meterRegistry) {
-        this.commandRepository = commandRepository;
-        this.logRepository = logRepository;
-        this.postgresqlCb = postgresqlCircuitBreaker;
-        this.meterRegistry = meterRegistry;
+        this(commandRepository, logRepository, postgresqlCircuitBreaker, meterRegistry, new ObjectMapper());
     }
 
     @Transactional
@@ -83,7 +92,7 @@ public class BotCommandPersistenceService {
     private String serializeParameters(BotCommandPayload payload) {
         if (payload.parameters() == null || payload.parameters().isEmpty()) return "[]";
         try {
-            return JSON.writeValueAsString(payload.parameters());
+            return objectMapper.writeValueAsString(payload.parameters());
         } catch (Exception e) {
             log.warn("Failed to serialize parameters for command {}", payload.name());
             return "[]";
