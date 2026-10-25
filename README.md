@@ -1,6 +1,6 @@
 [![Java](https://img.shields.io/badge/Java-25-orange?logo=openjdk)](https://openjdk.org/)
 [![Oracle GraalVM](https://img.shields.io/badge/Oracle%20GraalVM%20(GFTC)-JDK%2025-red?logo=graalvm)](https://www.graalvm.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.5-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.9-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![JDA](https://img.shields.io/badge/JDA-5.2.1-blue)](https://github.com/discord-jda/JDA)
 [![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka%20%2F%20Redpanda-3--Node%20Cluster-black?logo=apachekafka)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2F%20pg__partman-18-blue?logo=postgresql)](https://www.postgresql.org/)
@@ -241,7 +241,7 @@ A aplicação é preparada para compilação **AOT nativa** ou execução com o 
 ```dockerfile
 # Compilação Multi-Stage no Dockerfile utilizando Oracle GraalVM (GFTC)
 FROM container-registry.oracle.com/graalvm/native-image:25 AS native-builder
-FROM debian:bookworm-slim AS native
+FROM debian:trixie-slim AS native
 ```
 
 ### Otimizações Habilitadas no Dockerfile e Gradle:

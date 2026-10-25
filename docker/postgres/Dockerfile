@@ -1,6 +1,7 @@
 FROM postgres:17
 
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends \
       postgresql-17-cron \
       postgresql-17-partman \

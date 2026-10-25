@@ -21,7 +21,10 @@ import com.discord.gateway.model.OutboundResponsePayload;
 import com.discord.gateway.model.PayloadValidationException;
 import com.discord.gateway.model.ReferencedMessageInfo;
 import com.discord.gateway.model.UserInfo;
+import org.apache.coyote.AbstractProtocol;
+import org.apache.coyote.http11.AbstractHttp11Protocol;
 import org.flywaydb.core.extensibility.Plugin;
+import org.springframework.aot.hint.ExecutableMode;
 import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
@@ -71,6 +74,13 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
             registerClassHierarchy(hints, type);
         }
 
+        hints.reflection().registerType(AbstractProtocol.class, MemberCategory.INVOKE_PUBLIC_METHODS);
+        try {
+            hints.reflection().registerMethod(
+                    AbstractHttp11Protocol.class.getMethod("isSSLEnabled"), ExecutableMode.INVOKE);
+        } catch (NoSuchMethodException ex) {
+            throw new IllegalStateException("Required Tomcat reflection methods are unavailable", ex);
+        }
         hints.reflection().registerType(Plugin.class, MemberCategory.values());
         ServiceLoader.load(Plugin.class, cl).stream().forEach(provider -> {
             Class<?> pluginClass = provider.type();
@@ -153,4 +163,3 @@ public class GraalVmHints implements RuntimeHintsRegistrar {
         }
     }
 }
-

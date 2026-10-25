@@ -5,6 +5,9 @@ on:
     branches: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -20,6 +23,22 @@ jobs:
           distribution: graalvm
           java-version: '25'
           cache: gradle
+
+      - name: Generate dependency SBOM
+        shell: bash
+        run: ./gradlew cyclonedxDirectBom --no-daemon --console=plain
+
+      - name: Scan runtime dependencies
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: sbom
+          scan-ref: build/reports/cyclonedx-direct/bom.json
+          format: table
+          exit-code: '1'
+          scanners: vuln
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          version: v0.76.1
 
       - name: Run tests
         shell: bash
@@ -72,3 +91,11 @@ jobs:
         with:
           name: test-results
           path: build/reports/tests/test
+
+      - name: Publish dependency SBOM
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: dependency-sbom
+          path: build/reports/cyclonedx-direct/bom.json
+          retention-days: 30
