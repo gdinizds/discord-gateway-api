@@ -15,6 +15,9 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -121,39 +124,97 @@ public class AttachmentRelayService {
             throw new AttachmentRelayException("Attachment relay interrupted for: " + filename, e);
         }
 
+        int maxAttempts = 3;
         try {
-            garageCb.executeCallable(() -> {
-                try (var stream = downloader.download(discordUrl)) {
-                    if (sizeBytes > 0) {
-                        s3Client.putObject(
-                                PutObjectRequest.builder().bucket(bucket).key(key).contentLength(sizeBytes).build(),
-                                RequestBody.fromInputStream(stream, sizeBytes));
-                    } else {
-                        byte[] bytes = stream.readNBytes((int) maxSize + 1);
-                        if (bytes.length > maxSize) {
-                            meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "size_limit").increment();
-                            throw new AttachmentRelayException(
-                                    "Attachment '%s' exceeded limit %d".formatted(filename, maxSize));
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    garageCb.executeCallable(() -> {
+                        try (var rawStream = downloader.download(discordUrl)) {
+                            if (sizeBytes > 0) {
+                                var stream = new ValidatingInputStream(rawStream, sizeBytes);
+                                s3Client.putObject(
+                                        PutObjectRequest.builder().bucket(bucket).key(key).contentLength(sizeBytes).build(),
+                                        RequestBody.fromInputStream(stream, sizeBytes));
+                            } else {
+                                byte[] bytes = rawStream.readNBytes((int) maxSize + 1);
+                                if (bytes.length > maxSize) {
+                                    meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "size_limit").increment();
+                                    throw new AttachmentRelayException(
+                                            "Attachment '%s' exceeded limit %d".formatted(filename, maxSize));
+                                }
+                                s3Client.putObject(
+                                        PutObjectRequest.builder().bucket(bucket).key(key).contentLength((long) bytes.length).build(),
+                                        RequestBody.fromBytes(bytes));
+                            }
                         }
-                        s3Client.putObject(
-                                PutObjectRequest.builder().bucket(bucket).key(key).contentLength((long) bytes.length).build(),
-                                RequestBody.fromBytes(bytes));
+                        return null;
+                    });
+                    meterRegistry.counter("discord.gateway.attachments.relayed").increment();
+                    return endpoint + "/" + bucket + "/" + key;
+                } catch (AttachmentRelayException e) {
+                    throw e;
+                } catch (Exception e) {
+                    if (e.getCause() instanceof AttachmentRelayException are) {
+                        throw are;
+                    }
+                    if (attempt == maxAttempts) {
+                        meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "relay_failure").increment();
+                        throw new AttachmentRelayException("Failed to relay attachment: " + filename, e);
+                    }
+                    log.warn("Attempt {}/{} to relay attachment '{}' failed (retrying): {}",
+                            attempt, maxAttempts, filename, e.getMessage());
+                    try {
+                        Thread.sleep(100L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new AttachmentRelayException("Attachment relay interrupted: " + filename, ie);
                     }
                 }
-                return null;
-            });
-            meterRegistry.counter("discord.gateway.attachments.relayed").increment();
-            return endpoint + "/" + bucket + "/" + key;
-        } catch (AttachmentRelayException e) {
-            throw e;
-        } catch (Exception e) {
-            if (e.getCause() instanceof AttachmentRelayException are) {
-                throw are;
             }
-            meterRegistry.counter("discord.gateway.attachments.discarded", "reason", "relay_failure").increment();
-            throw new AttachmentRelayException("Failed to relay attachment: " + filename, e);
+            throw new AttachmentRelayException("Failed to relay attachment: " + filename);
         } finally {
             relaySemaphore.release();
+        }
+    }
+
+    private static class ValidatingInputStream extends FilterInputStream {
+        private final long expectedSize;
+        private long bytesRead = 0;
+
+        ValidatingInputStream(InputStream in, long expectedSize) {
+            super(in);
+            this.expectedSize = expectedSize;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1) {
+                bytesRead++;
+            } else if (expectedSize > 0 && bytesRead < expectedSize) {
+                throw new IOException("Stream truncated: expected %d bytes but read %d".formatted(expectedSize, bytesRead));
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int read = super.read(b, off, len);
+            if (read != -1) {
+                bytesRead += read;
+            } else if (expectedSize > 0 && bytesRead < expectedSize) {
+                throw new IOException("Stream truncated: expected %d bytes but read %d".formatted(expectedSize, bytesRead));
+            }
+            return read;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            if (skipped > 0) {
+                bytesRead += skipped;
+            }
+            return skipped;
         }
     }
 

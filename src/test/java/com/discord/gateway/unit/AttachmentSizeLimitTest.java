@@ -217,4 +217,29 @@ class AttachmentSizeLimitTest {
         verify(s3Client).putObject(captor.capture(), any(RequestBody.class));
         assertThat(captor.getValue().key()).isEqualTo("guild-1/msg-12/passwd");
     }
+
+    @Test
+    void truncatedStreamThrowsAndFailsRelay() {
+        var customRelay = new AttachmentRelayService(
+                url -> new ByteArrayInputStream("bytes".getBytes()),
+                s3Client,
+                CircuitBreaker.ofDefaults("garage-test"),
+                guildConfigRepository,
+                new SimpleMeterRegistry(),
+                DEFAULT_MAX,
+                "discord-attachments",
+                "http://192.168.10.96");
+
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenAnswer(inv -> {
+                    RequestBody body = inv.getArgument(1);
+                    body.contentStreamProvider().newStream().readAllBytes();
+                    return null;
+                });
+
+        assertThatThrownBy(() ->
+                customRelay.relay("http://cdn.discord.com/file.txt", "file.txt", 10L, "guild-1", "msg-trunc", 0L))
+                .isInstanceOf(AttachmentRelayException.class)
+                .hasMessageContaining("Failed to relay attachment");
+    }
 }

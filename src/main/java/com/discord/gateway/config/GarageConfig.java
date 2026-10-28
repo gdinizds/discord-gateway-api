@@ -67,7 +67,7 @@ public class GarageConfig {
     @Bean
     public AttachmentDownloader attachmentDownloader(S3Client s3Client) {
         HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_2)
+                .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS))
                 .build();
