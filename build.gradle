@@ -48,6 +48,10 @@ configurations.all {
             details.useVersion '1.11.4'
             details.because 'Remediate CVE-2026-106451 and related LZ4 denial-of-service vulnerabilities'
         }
+        if (details.requested.group == 'org.xerial.snappy' && details.requested.name == 'snappy-java') {
+            details.useVersion '1.1.10.9'
+            details.because 'Remediate CVE-2026-108106 and CVE-2026-93451'
+        }
     }
 }
 
